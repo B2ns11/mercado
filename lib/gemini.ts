@@ -139,15 +139,63 @@ function pick(obj: Record<string, any>, keys: string[]): any {
   return undefined;
 }
 
+const VALID_CATEGORIES: Category[] = [
+  'limpeza',
+  'higiene',
+  'alimentos',
+  'laticinios',
+  'lanches',
+];
+
+/** Categoria só é aceita se for uma das cinco; senão cai em alimentos. */
+function normalizeCategory(value: unknown): Category {
+  const text = String(value ?? '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  return (VALID_CATEGORIES as string[]).includes(text)
+    ? (text as Category)
+    : 'alimentos';
+}
+
+/** Quantidade da nota. Pode vir como "2", "1,000" (KG) ou ausente. */
+function parseQuantity(value: unknown): number {
+  const parsed = parsePrice(value);
+  return parsed > 0 ? parsed : 1;
+}
+
 /** Normaliza a resposta do Gemini para o formato que o app espera. */
 function normalizeReceipt(raw: Record<string, any>): ExtractedData {
   const rawItems = pick(raw, ['items', 'itens', 'produtos', 'products']) ?? [];
 
-  const items = (Array.isArray(rawItems) ? rawItems : []).map((item: any) => ({
-    name: String(pick(item, ['name', 'nome', 'descricao', 'descrição', 'produto']) ?? '')
-      .trim(),
-    price: parsePrice(pick(item, ['price', 'preco', 'preço', 'valor', 'total'])),
-  }));
+  const items = (Array.isArray(rawItems) ? rawItems : []).map((item: any) => {
+    const quantity = parseQuantity(
+      pick(item, ['quantity', 'quantidade', 'qtde', 'qtd'])
+    );
+
+    // A nota pode trazer preço unitário, total, ou os dois. Se só vier o total,
+    // divide pela quantidade para obter o unitário.
+    const unitPriceRaw = pick(item, ['unitPrice', 'precoUnitario', 'valorUnitario', 'vlUnit']);
+    const totalRaw = pick(item, ['total', 'valorTotal', 'vlTotal', 'price', 'preco', 'preço', 'valor']);
+
+    let unitPrice = parsePrice(unitPriceRaw);
+    if (unitPrice === 0) {
+      const total = parsePrice(totalRaw);
+      unitPrice = quantity > 0 ? total / quantity : total;
+    }
+
+    return {
+      name: String(
+        pick(item, ['name', 'nome', 'descricao', 'descrição', 'produto']) ?? ''
+      ).trim(),
+      quantity,
+      unit: String(pick(item, ['unit', 'unidade', 'un']) ?? 'un').trim() || 'un',
+      unitPrice,
+      category: normalizeCategory(pick(item, ['category', 'categoria'])),
+    };
+  });
 
   return {
     store: String(pick(raw, ['store', 'loja', 'estabelecimento']) ?? ''),
@@ -157,63 +205,41 @@ function normalizeReceipt(raw: Record<string, any>): ExtractedData {
 }
 
 export async function extractReceiptData(base64Image: string): Promise<ExtractedData> {
-  const prompt = `Analise esta imagem de nota fiscal / cupom fiscal e extraia TODAS as informações:
+  const prompt = `Analise esta imagem de nota fiscal / cupom fiscal e extraia TODAS as informações.
 
-1. Nome do estabelecimento / loja
-2. Data da compra (converta para o formato YYYY-MM-DD)
-3. TODOS os itens listados, com o preço individual de cada um
-4. Valor total da compra
+Para CADA item listado na nota, extraia:
+- name: descrição do produto como aparece na nota
+- quantity: a QUANTIDADE da coluna "Qtde." (pode ser fracionada em produtos por peso, ex: 1.235)
+- unit: a unidade da coluna "Un" (UN, KG, L, PC...)
+- unitPrice: o PREÇO UNITÁRIO (coluna "Vl. Unit"), não o total da linha
+- category: classifique o produto em UMA destas cinco categorias:
+    limpeza     = limpeza da casa e lavanderia (detergente, sabão em pó, desinfetante...)
+    higiene     = higiene pessoal e banheiro (shampoo, sabonete, papel higiênico...)
+    alimentos   = alimentos básicos e mercearia (arroz, feijão, carne, frutas, legumes...)
+    laticinios  = laticínios, condimentos e refrigerados (leite, queijo, iogurte, molhos...)
+    lanches     = biscoitos, chocolates e lanches (bolacha, salgadinho, doces...)
 
-IMPORTANTE:
-- Extraia TODOS os produtos listados, sem pular nenhum
-- Se houver quantidade × preço unitário, calcule o preço total daquele item
-- Inclua itens baratos e pequenos também
-- Preços como número (ex: 12.50, e não "R$ 12,50")
-- Se a data tiver só dia/mês, use o ano atual
+REGRAS IMPORTANTES:
+- Extraia TODOS os produtos listados, sem pular nenhum, inclusive os baratos
+- quantity e unitPrice devem ser NÚMEROS com ponto decimal (ex: 12.50), nunca "R$ 12,50"
+- Se a nota mostrar só o valor total do item, informe unitPrice = total ÷ quantidade
+- Se a quantidade não aparecer, use 1
+- category deve ser exatamente um destes: limpeza, higiene, alimentos, laticinios, lanches
+- Converta a data para YYYY-MM-DD; se vier só dia/mês, use o ano atual
 
 Responda APENAS com JSON válido, sem markdown e sem texto extra:
 {
   "store": "nome da loja",
   "date": "YYYY-MM-DD",
   "items": [
-    {"name": "nome do produto 1", "price": 10.50},
-    {"name": "nome do produto 2", "price": 5.25}
-  ],
-  "totalAmount": 15.75
+    {"name": "DRUMET FIG CONG", "quantity": 1.328, "unit": "KG", "unitPrice": 9.98, "category": "alimentos"},
+    {"name": "DETERGENTE 500ML", "quantity": 2, "unit": "UN", "unitPrice": 2.49, "category": "limpeza"}
+  ]
 }`;
 
   const text = await generateFromImage(base64Image, prompt);
   const raw = parseJson<Record<string, any>>(text, /\{[\s\S]*\}/);
   return normalizeReceipt(raw);
-}
-
-export async function identifyProductsFromPhoto(
-  base64Image: string
-): Promise<Array<{ name: string; category: Category }>> {
-  const prompt = `Identifique todos os produtos visíveis nesta imagem e classifique cada um.
-
-Categorias disponíveis:
-- limpeza (limpeza da casa e lavanderia)
-- higiene (higiene pessoal e banheiro)
-- alimentos (alimentos básicos e mercearia)
-- laticinios (laticínios, condimentos e refrigerados)
-- lanches (biscoitos, chocolates e lanches)
-
-Use SOMENTE estes IDs de categoria: limpeza, higiene, alimentos, laticinios, lanches
-
-Responda APENAS com um array JSON válido, sem markdown e sem texto extra:
-[
-  {"name": "nome do produto", "category": "alimentos"}
-]`;
-
-  const text = await generateFromImage(base64Image, prompt);
-
-  try {
-    return parseJson<Array<{ name: string; category: Category }>>(text, /\[[\s\S]*\]/);
-  } catch {
-    // Foto sem produtos reconhecíveis não é erro: segue com lista vazia.
-    return [];
-  }
 }
 
 export async function extractExpiryDate(base64Image: string): Promise<string | null> {

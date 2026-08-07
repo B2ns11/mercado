@@ -47,13 +47,22 @@ export interface CategoryInfo {
   color: string;
 }
 
+export interface ReceiptItem {
+  name: string;
+  /** Quantidade lida da nota (coluna Qtde.). 1 quando não informada. */
+  quantity: number;
+  /** Unidade da nota: UN, KG, L... */
+  unit: string;
+  /** Preço unitário. O total do item é quantity × unitPrice. */
+  unitPrice: number;
+  /** Categoria inferida pela IA a partir do nome do produto. */
+  category: Category;
+}
+
 export interface ExtractedData {
   store: string;
   date: string;
-  items: Array<{
-    name: string;
-    price: number;
-  }>;
+  items: ReceiptItem[];
 }
 
 export interface ReconciliationItem {
