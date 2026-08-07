@@ -105,6 +105,57 @@ function parseJson<T>(text: string, pattern: RegExp): T {
   return JSON.parse(match[0]) as T;
 }
 
+/**
+ * Converte o preço vindo do Gemini para número. Prompt em português faz o
+ * modelo devolver às vezes "R$ 12,50" ou "12,50" — Number() daria NaN, que
+ * JSON.stringify manda como null e o banco grava como 0.
+ */
+export function parsePrice(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value !== 'string') return 0;
+
+  let text = value.replace(/R\$/gi, '').replace(/\s/g, '').trim();
+  if (!text) return 0;
+
+  // "1.234,56" (pt-BR) vs "1,234.56" (en-US): manda quem vem por último.
+  const lastComma = text.lastIndexOf(',');
+  const lastDot = text.lastIndexOf('.');
+
+  if (lastComma > lastDot) {
+    text = text.replace(/\./g, '').replace(',', '.');
+  } else {
+    text = text.replace(/,/g, '');
+  }
+
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Aceita as variações de nome de campo que o modelo pode devolver. */
+function pick(obj: Record<string, any>, keys: string[]): any {
+  for (const key of keys) {
+    if (obj?.[key] !== undefined && obj?.[key] !== null) return obj[key];
+  }
+  return undefined;
+}
+
+/** Normaliza a resposta do Gemini para o formato que o app espera. */
+function normalizeReceipt(raw: Record<string, any>): ExtractedData {
+  const rawItems = pick(raw, ['items', 'itens', 'produtos', 'products']) ?? [];
+
+  const items = (Array.isArray(rawItems) ? rawItems : []).map((item: any) => ({
+    name: String(pick(item, ['name', 'nome', 'descricao', 'descrição', 'produto']) ?? '')
+      .trim(),
+    price: parsePrice(pick(item, ['price', 'preco', 'preço', 'valor', 'total'])),
+  }));
+
+  return {
+    store: String(pick(raw, ['store', 'loja', 'estabelecimento']) ?? ''),
+    date: String(pick(raw, ['date', 'data', 'dataCompra']) ?? ''),
+    items: items.filter((item) => item.name),
+  };
+}
+
 export async function extractReceiptData(base64Image: string): Promise<ExtractedData> {
   const prompt = `Analise esta imagem de nota fiscal / cupom fiscal e extraia TODAS as informações:
 
@@ -132,7 +183,8 @@ Responda APENAS com JSON válido, sem markdown e sem texto extra:
 }`;
 
   const text = await generateFromImage(base64Image, prompt);
-  return parseJson<ExtractedData>(text, /\{[\s\S]*\}/);
+  const raw = parseJson<Record<string, any>>(text, /\{[\s\S]*\}/);
+  return normalizeReceipt(raw);
 }
 
 export async function identifyProductsFromPhoto(

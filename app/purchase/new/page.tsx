@@ -21,6 +21,7 @@ interface ReconciliationItem {
   id: string;
   receiptName: string;
   receiptPrice: number;
+  quantity: number;
   matchedProduct?: IdentifiedProduct | null;
   manualCategory?: Category;
   expiryDate?: string;
@@ -129,7 +130,8 @@ export default function NewPurchasePage() {
       return {
         id: `item-${idx}`,
         receiptName: item.name,
-        receiptPrice: item.price,
+        receiptPrice: Number(item.price) || 0,
+        quantity: 1,
         matchedProduct: matched || null,
         status: matched ? 'auto-matched' : 'unmatched',
       } as ReconciliationItem;
@@ -157,6 +159,18 @@ export default function NewPurchasePage() {
       prev.map((item) =>
         item.id === id ? { ...item, manualCategory: category } : item
       )
+    );
+  }
+
+  function setPrice(id: string, price: number) {
+    setReconciliation((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, receiptPrice: price } : item))
+    );
+  }
+
+  function setQuantity(id: string, quantity: number) {
+    setReconciliation((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
     );
   }
 
@@ -204,7 +218,7 @@ export default function NewPurchasePage() {
       const products = reconciliation.map((item) => ({
         name: item.matchedProduct?.name ?? item.receiptName,
         category: resolveCategory(item),
-        quantity: 1,
+        quantity: item.quantity,
         unit: 'un',
         price: item.receiptPrice,
         expiryDate: item.expiryDate || null,
@@ -216,7 +230,10 @@ export default function NewPurchasePage() {
         body: JSON.stringify({
           receiptPhoto: receiptImage ? `data:image/jpeg;base64,${receiptImage}` : '',
           receiptDate: receiptData?.date || new Date().toISOString().slice(0, 10),
-          totalAmount: reconciliation.reduce((sum, i) => sum + i.receiptPrice, 0),
+          totalAmount: reconciliation.reduce(
+            (sum, i) => sum + i.receiptPrice * i.quantity,
+            0
+          ),
           products,
         }),
       });
@@ -472,7 +489,7 @@ export default function NewPurchasePage() {
                           {item.receiptName}
                         </p>
                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                          {formatCurrency(item.receiptPrice)}
+                          Subtotal: {formatCurrency(item.receiptPrice * item.quantity)}
                         </p>
                       </div>
                       <div
@@ -489,6 +506,46 @@ export default function NewPurchasePage() {
                         {item.status === 'unmatched' && '⚠ Não mapeado'}
                       </div>
                     </div>
+
+                    {/* Preço e quantidade editáveis: se a IA leu errado ou não
+                        leu, o valor é corrigido aqui antes de salvar. */}
+                    <div className="flex gap-2 mb-3">
+                      <label className="flex-1">
+                        <span className="block text-xs text-slate-600 mb-1">
+                          Preço unitário (R$)
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.receiptPrice}
+                          onChange={(e) => setPrice(item.id, Number(e.target.value) || 0)}
+                          className={`w-full p-2 rounded border text-sm ${
+                            item.receiptPrice > 0
+                              ? 'border-slate-300'
+                              : 'border-yellow-400 bg-yellow-50'
+                          }`}
+                        />
+                      </label>
+                      <label className="w-24">
+                        <span className="block text-xs text-slate-600 mb-1">Qtd.</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => setQuantity(item.id, Number(e.target.value) || 1)}
+                          className="w-full p-2 rounded border border-slate-300 text-sm"
+                        />
+                      </label>
+                    </div>
+
+                    {item.receiptPrice === 0 && (
+                      <p className="text-xs text-yellow-700 mb-3">
+                        A IA não conseguiu ler o preço deste item. Digite o valor
+                        acima, senão ele entra como R$ 0,00 e não aparece nos gastos.
+                      </p>
+                    )}
 
                     {item.matchedProduct ? (
                       <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded flex items-center justify-between">
@@ -541,6 +598,15 @@ export default function NewPurchasePage() {
                 ))}
               </div>
 
+              <div className="flex items-center justify-between px-2 py-3 border-t border-slate-200">
+                <span className="font-semibold text-slate-700">Total da compra</span>
+                <span className="text-xl font-bold text-blue-600">
+                  {formatCurrency(
+                    reconciliation.reduce((s, i) => s + i.receiptPrice * i.quantity, 0)
+                  )}
+                </span>
+              </div>
+
               <button
                 onClick={() => setStep('expiry')}
                 className="w-full glass-button bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center gap-2"
@@ -566,7 +632,7 @@ export default function NewPurchasePage() {
                     </p>
                     <p className="text-xs text-slate-600 mb-3">
                       {CATEGORIES[resolveCategory(item)].icon}{' '}
-                      {CATEGORIES[resolveCategory(item)].label} ·{' '}
+                      {CATEGORIES[resolveCategory(item)].label} · {item.quantity}x{' '}
                       {formatCurrency(item.receiptPrice)}
                     </p>
 
