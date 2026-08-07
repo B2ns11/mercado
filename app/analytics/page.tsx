@@ -31,10 +31,10 @@ export default function AnalyticsPage() {
       const analyticsData = await analyticsRes.json();
 
       if (!purchasesRes.ok) {
-        throw new Error(`${purchasesData.error} - ${purchasesData.details ?? ''}`);
+        throw new Error(purchasesData.error ?? 'Falha ao carregar compras');
       }
       if (!analyticsRes.ok) {
-        throw new Error(`${analyticsData.error} - ${analyticsData.details ?? ''}`);
+        throw new Error(analyticsData.error ?? 'Falha ao carregar análises');
       }
 
       setPurchases(Array.isArray(purchasesData) ? purchasesData : []);

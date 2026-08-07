@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching purchases:', error);
     return NextResponse.json(
-      { error: 'Falha ao carregar compras', details: String(error) },
+      { error: error instanceof Error ? error.message : 'Falha ao carregar compras' },
       { status: 500 }
     );
   }
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating purchase:', error);
     return NextResponse.json(
-      { error: 'Falha ao salvar compra', details: String(error) },
+      { error: error instanceof Error ? error.message : 'Falha ao salvar compra' },
       { status: 500 }
     );
   }

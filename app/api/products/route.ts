@@ -31,7 +31,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching products:', error);
     return NextResponse.json(
-      { error: 'Falha ao carregar produtos', details: String(error) },
+      { error: error instanceof Error ? error.message : 'Falha ao carregar produtos' },
       { status: 500 }
     );
   }
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating product:', error);
     return NextResponse.json(
-      { error: 'Falha ao criar produto', details: String(error) },
+      { error: error instanceof Error ? error.message : 'Falha ao criar produto' },
       { status: 500 }
     );
   }

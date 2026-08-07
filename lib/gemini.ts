@@ -4,11 +4,59 @@ import type { ExtractedData, Category } from '@/types';
 const apiKey =
   process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
-const MODEL_CANDIDATES = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+const MODEL_CANDIDATES = [
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-1.5-flash',
+  'gemini-2.0-flash-lite',
+];
+
+/** Modelo indisponível para esta chave — vale tentar o próximo da lista. */
+function isModelUnavailable(message: string): boolean {
+  if (message.includes('404') || message.includes('not found')) return true;
+
+  // 429 com "limit: 0" não é rajada de requisições: é free tier bloqueado
+  // para aquele modelo. Outro modelo pode estar liberado.
+  if (message.includes('429') && /limit:\s*0\b/.test(message)) return true;
+
+  return false;
+}
+
+/** Transforma o erro cru da API (um JSON enorme) em algo legível na tela. */
+function friendlyError(message: string): string {
+  if (message.includes('API key not valid') || message.includes('API_KEY_INVALID')) {
+    return 'Chave do Gemini inválida. Gere uma nova em https://aistudio.google.com/app/apikey e coloque em GEMINI_API_KEY no .env.local';
+  }
+
+  if (message.includes('429')) {
+    if (/limit:\s*0\b/.test(message)) {
+      return (
+        'Sua chave do Gemini não tem cota gratuita liberada para nenhum dos modelos testados ' +
+        '(quota free tier = 0). Isso costuma acontecer quando o free tier não está disponível ' +
+        'no país do projeto. Ative o faturamento no Google AI Studio ou use uma chave de um ' +
+        'projeto com free tier: https://aistudio.google.com/app/apikey'
+      );
+    }
+
+    const retry = message.match(/"retryDelay":"(\d+)s"/);
+    return `Limite de requisições do Gemini atingido. Tente de novo em ${
+      retry ? retry[1] : '60'
+    } segundos.`;
+  }
+
+  if (message.includes('403') || message.includes('PERMISSION_DENIED')) {
+    return 'A API do Gemini recusou a chave (403). Confirme que a Generative Language API está habilitada no projeto.';
+  }
+
+  // Corta o JSON gigante que a API devolve.
+  return message.length > 300 ? `${message.slice(0, 300)}...` : message;
+}
 
 /**
  * Envia imagem + prompt ao Gemini e devolve o texto da resposta.
- * Tenta os modelos em ordem: se um não existir na conta, cai para o próximo.
+ * Tenta os modelos em ordem: se um não estiver liberado para a chave
+ * (inexistente ou sem cota), cai para o próximo.
  */
 async function generateFromImage(base64Image: string, prompt: string): Promise<string> {
   if (!apiKey) {
@@ -18,7 +66,7 @@ async function generateFromImage(base64Image: string, prompt: string): Promise<s
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  let lastError: unknown = null;
+  let lastMessage = '';
 
   for (const modelName of MODEL_CANDIDATES) {
     try {
@@ -33,17 +81,16 @@ async function generateFromImage(base64Image: string, prompt: string): Promise<s
       // não no result. Era aqui que estava o bug que fazia a IA "não fazer nada".
       return result.response.text();
     } catch (error) {
-      lastError = error;
-      const message = error instanceof Error ? error.message : String(error);
-      // Modelo inexistente para essa chave: tenta o próximo da lista.
-      if (message.includes('404') || message.includes('not found')) {
-        continue;
-      }
-      throw error;
+      lastMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[gemini] modelo ${modelName} falhou:`, lastMessage.slice(0, 200));
+
+      if (isModelUnavailable(lastMessage)) continue;
+
+      throw new Error(friendlyError(lastMessage));
     }
   }
 
-  throw lastError ?? new Error('Nenhum modelo Gemini disponível');
+  throw new Error(friendlyError(lastMessage));
 }
 
 /** Extrai o primeiro bloco JSON da resposta, tolerando cercas ```json. */

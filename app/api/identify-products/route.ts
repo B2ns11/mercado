@@ -27,7 +27,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error identifying products:', error);
     return NextResponse.json(
-      { error: 'Failed to identify products', details: String(error) },
+      {
+        error: error instanceof Error ? error.message : 'Falha ao identificar produtos',
+      },
       { status: 500 }
     );
   }

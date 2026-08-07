@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error extracting receipt data:', error);
     return NextResponse.json(
-      { error: 'Failed to extract receipt data', details: String(error) },
+      {
+        error: error instanceof Error ? error.message : 'Falha ao ler a nota fiscal',
+      },
       { status: 500 }
     );
   }

@@ -69,6 +69,43 @@ export function isExpired(expiryDate: string): boolean {
   return getDaysUntilExpiry(expiryDate) < 0;
 }
 
+/**
+ * Reduz a foto antes de mandar para a IA. Câmera de celular gera imagens de
+ * 4000px que viram base64 de vários MB — lento para enviar e caro em tokens.
+ * 1600px de lado maior é mais que suficiente para ler texto de nota fiscal.
+ */
+export function fileToCompressedBase64(file: File, maxSize = 1600): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onerror = reject;
+
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          // Sem canvas disponível: manda a imagem original.
+          resolve((reader.result as string).split(',')[1]);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      };
+
+      img.src = reader.result as string;
+    };
+  });
+}
+
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

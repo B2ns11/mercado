@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { ArrowRight, Camera, Upload, X, Check, ChevronDown } from 'lucide-react';
-import { fileToBase64, CATEGORIES, formatCurrency } from '@/lib/utils';
+import { fileToCompressedBase64, CATEGORIES, formatCurrency } from '@/lib/utils';
 import type { Category } from '@/types';
 
 type Step = 'receipt' | 'products' | 'reconciliation' | 'expiry' | 'done';
@@ -53,7 +53,7 @@ export default function NewPurchasePage() {
     setError(null);
     try {
       console.log('Converting file to base64...');
-      const base64 = await fileToBase64(file);
+      const base64 = await fileToCompressedBase64(file);
       setReceiptImage(base64);
 
       console.log('Sending request to /api/extract-receipt...');
@@ -65,7 +65,7 @@ export default function NewPurchasePage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`API Error: ${errorData.error} - ${errorData.details}`);
+        throw new Error(errorData.error ?? 'Falha na chamada da IA');
       }
 
       const data = await response.json();
@@ -75,7 +75,7 @@ export default function NewPurchasePage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
       console.error('Error uploading receipt:', errorMsg);
-      setError(`Erro ao processar nota fiscal: ${errorMsg}`);
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ export default function NewPurchasePage() {
       console.log(`Converting ${files.length} files to base64...`);
       const images: string[] = [];
       for (const file of files) {
-        const base64 = await fileToBase64(file);
+        const base64 = await fileToCompressedBase64(file);
         images.push(base64);
       }
       setProductImages(images);
@@ -102,7 +102,7 @@ export default function NewPurchasePage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`API Error: ${errorData.error} - ${errorData.details}`);
+        throw new Error(errorData.error ?? 'Falha na chamada da IA');
       }
 
       const products = await response.json();
@@ -113,7 +113,7 @@ export default function NewPurchasePage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
       console.error('Error identifying products:', errorMsg);
-      setError(`Erro ao identificar produtos: ${errorMsg}`);
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -171,7 +171,7 @@ export default function NewPurchasePage() {
     setLoading(true);
     setError(null);
     try {
-      const base64 = await fileToBase64(file);
+      const base64 = await fileToCompressedBase64(file);
       const response = await fetch('/api/extract-expiry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,7 +180,7 @@ export default function NewPurchasePage() {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(`${data.error} - ${data.details ?? ''}`);
+        throw new Error(data.error ?? 'Falha na chamada da IA');
       }
 
       if (data.expiryDate) {
@@ -223,7 +223,7 @@ export default function NewPurchasePage() {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(`${data.error} - ${data.details ?? ''}`);
+        throw new Error(data.error ?? 'Falha na chamada da IA');
       }
 
       setStep('done');
