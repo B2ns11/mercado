@@ -28,8 +28,10 @@ mercado/
 │   │   ├── products/          # CRUD de produtos
 │   │   ├── purchases/         # CRUD de compras
 │   │   ├── extract-receipt/   # Gemini receipt extraction
-│   │   ├── identify-products/ # Gemini product recognition
-│   │   └── extract-expiry/    # Gemini date extraction
+│   │   ├── extract-expiry/    # Gemini date extraction
+│   │   ├── analytics/         # Gastos por categoria no mês
+│   │   ├── gemini-check/      # Diagnóstico da chave do Gemini
+│   │   └── supabase-check/    # Diagnóstico do banco
 │   ├── purchase/
 │   │   └── new/page.tsx       # Fluxo guiado de nova compra
 │   ├── analytics/
@@ -59,14 +61,15 @@ mercado/
 - Indicadores de validade (verde/amarelo/vermelho)
 - Navegação rápida para novas compras
 
-### 2. Fluxo de Compra (5 Etapas)
+### 2. Fluxo de Compra (4 Etapas)
 **Arquivo**: `app/purchase/new/page.tsx`
 
-1. **Receipt** - Fotografar nota fiscal → Gemini extrai: loja, data, itens, preços
-2. **Products** - Fotografar produtos → Gemini identifica e categoriza
-3. **Reconciliation** - Comparar itens da NF com produtos identificados
-4. **Expiry** - Registrar datas de validade (manual ou por foto)
-5. **Done** - Confirmar e salvar
+1. **Receipt** - Fotografar nota fiscal → Gemini extrai loja, data e, por item,
+   descrição, quantidade, unidade, preço unitário e categoria
+2. **Review** - Revisar e editar tudo: nome, categoria, quantidade, unidade e
+   preço; remover itens e adicionar os que faltaram
+3. **Expiry** - Registrar datas de validade (digitando ou por foto do rótulo)
+4. **Done** - Confirmar e salvar
 
 ### 3. Analytics & Histórico
 **Arquivo**: `app/analytics/page.tsx`
@@ -168,15 +171,12 @@ CREATE TABLE purchases (
 
 1. **extractReceiptData(base64Image)**
    - Input: Foto da nota fiscal (base64)
-   - Output: `{ store, date, items: [{ name, price }] }`
-   - Modelo: gemini-pro-vision
+   - Output: `{ store, date, items: [{ name, quantity, unit, unitPrice, category }] }`
+   - A categoria é inferida do nome do produto na nota
+   - Modelos tentados em ordem: gemini-2.0-flash → 2.5-flash → flash-latest →
+     1.5-flash → 2.0-flash-lite
 
-2. **identifyProductsFromPhoto(base64Image)**
-   - Input: Foto de produtos (base64)
-   - Output: `[{ name, category }]`
-   - Categoriza automaticamente em 5 categorias
-
-3. **extractExpiryDate(base64Image)**
+2. **extractExpiryDate(base64Image)**
    - Input: Foto da data no rótulo (base64)
    - Output: Data em formato YYYY-MM-DD ou null
    - Usa OCR integrado do Gemini

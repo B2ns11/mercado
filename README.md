@@ -12,11 +12,12 @@ Um app inteligente de controle de estoque doméstico, gestão de validade de pro
 - Controle de consumo: decrementar quantidade conforme itens são consumidos
 
 ### 📸 Entrada Inteligente de Dados
-Fluxo guiado com 4 etapas:
-1. **Nota Fiscal** - Fotografe a nota fiscal
-2. **Produtos** - Fotografe os produtos comprados
-3. **Conciliação** - IA compara itens da nota com os identificados
-4. **Validades** - Registre datas de validade (manual ou por foto)
+Fluxo guiado com 3 etapas:
+1. **Nota Fiscal** - Fotografe a nota; a IA lê loja, data, produtos, quantidades,
+   preços unitários e já classifica cada item numa das 5 categorias
+2. **Revisão** - Confira e ajuste o que a IA leu: nome, categoria, quantidade,
+   unidade e preço. Dá para remover itens e adicionar os que faltaram
+3. **Validades** - Registre datas de validade (digitando ou fotografando o rótulo)
 
 ### 📊 Analytics & Histórico
 - Gráficos de gastos por categoria (percentuais)
@@ -213,15 +214,12 @@ O app segue os Apple Human Interface Guidelines com:
 
 ### Entrada de Compra
 ```
-Foto Nota Fiscal 
+Foto Nota Fiscal
   ↓ (Gemini Vision)
-Extrai: loja, data, itens, preços
+Extrai: loja, data, itens, quantidades,
+        unidades, preços unitários e categorias
   ↓
-Foto Produtos
-  ↓ (Gemini Vision)
-Identifica produtos e categorias
-  ↓
-Conciliação & Validação
+Revisão pelo usuário (tudo editável)
   ↓
 Registro de Validades
   ↓
@@ -230,7 +228,6 @@ Salva em Supabase
 
 ### Armazenamento de Imagens
 - **Nota Fiscal**: Armazenada permanentemente (comprovante)
-- **Fotos de Produtos**: Processamento efêmero (não salva)
 - **Fotos de Validade**: Processamento efêmero (OCR apenas)
 
 ## 📝 APIs do Gemini Utilizadas
@@ -239,13 +236,10 @@ Salva em Supabase
 Extrai de foto de nota fiscal:
 - Nome do estabelecimento
 - Data da compra
-- Lista de itens com preços individuais
+- Para cada item: descrição, quantidade, unidade, preço unitário e categoria
 
-### `identifyProductsFromPhoto()`
-Identifica produtos em foto:
-- Nome do produto
-- Categoria (de 5 pré-definidas)
-- Automaticamente agrupa por categoria
+A categoria é inferida pela IA a partir do nome do produto na própria nota —
+não é preciso fotografar os produtos.
 
 ### `extractExpiryDate()`
 Extrai data de validade de rótulo:
