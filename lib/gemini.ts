@@ -18,18 +18,30 @@ function extractText(response: any): string {
 export async function extractReceiptData(base64Image: string): Promise<ExtractedData> {
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const prompt = `Analyze this receipt image and extract:
-1. Store/establishment name
-2. Purchase date
-3. List of items and their individual prices
+  const prompt = `Analyze this receipt/invoice image carefully and extract ALL information:
 
-Return as JSON with structure: {
-  "store": "store name",
+1. **Store/Establishment name** - The company/store name
+2. **Purchase date** - The transaction date (convert to YYYY-MM-DD format)
+3. **ALL items listed** - Every product with its individual price
+4. **Total amount** - The final total (sum should match all items)
+
+IMPORTANT:
+- Extract EVERY product listed on the receipt
+- If there are quantity × price, calculate the individual item price
+- Include all items even if small/cheap
+- For date: if only day/month given, use current year or context year
+- Format prices as numbers (e.g., 12.50 not "R$ 12,50")
+
+Return ONLY valid JSON, no markdown, no extra text:
+{
+  "store": "store name here",
   "date": "YYYY-MM-DD",
-  "items": [{"name": "product name", "price": number}]
-}
-
-Only return valid JSON, no additional text.`;
+  "items": [
+    {"name": "product 1 name", "price": 10.50},
+    {"name": "product 2 name", "price": 5.25}
+  ],
+  "totalAmount": 15.75
+}`;
 
   const response = await model.generateContent([
     {
@@ -45,6 +57,7 @@ Only return valid JSON, no additional text.`;
   const jsonMatch = text.match(/\{[\s\S]*\}/);
 
   if (!jsonMatch) {
+    console.error('Could not match JSON in response:', text);
     throw new Error('Could not extract receipt data');
   }
 

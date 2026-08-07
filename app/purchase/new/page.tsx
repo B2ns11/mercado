@@ -1,17 +1,43 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { ArrowRight, Camera, Upload } from 'lucide-react';
-import { fileToBase64 } from '@/lib/utils';
+import { ArrowRight, Camera, Upload, X, Check, ChevronDown } from 'lucide-react';
+import { fileToBase64, CATEGORIES, formatCurrency } from '@/lib/utils';
+import type { Category } from '@/types';
 
 type Step = 'receipt' | 'products' | 'reconciliation' | 'expiry' | 'done';
+
+interface ReceiptItem {
+  name: string;
+  price: number;
+}
+
+interface IdentifiedProduct {
+  name: string;
+  category: Category;
+}
+
+interface ReconciliationItem {
+  id: string;
+  receiptName: string;
+  receiptPrice: number;
+  matchedProduct?: IdentifiedProduct | null;
+  manualCategory?: Category;
+  status: 'auto-matched' | 'manual-matched' | 'unmatched';
+}
 
 export default function NewPurchasePage() {
   const [step, setStep] = useState<Step>('receipt');
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
   const [productImages, setProductImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [extractedData, setExtractedData] = useState<any>(null);
+  const [receiptData, setReceiptData] = useState<{
+    store?: string;
+    date?: string;
+    items: ReceiptItem[];
+  } | null>(null);
+  const [identifiedProducts, setIdentifiedProducts] = useState<IdentifiedProduct[]>([]);
+  const [reconciliation, setReconciliation] = useState<ReconciliationItem[]>([]);
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const productsInputRef = useRef<HTMLInputElement>(null);
 
@@ -21,7 +47,6 @@ export default function NewPurchasePage() {
       const base64 = await fileToBase64(file);
       setReceiptImage(base64);
 
-      // Extract receipt data using Gemini
       const response = await fetch('/api/extract-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -29,7 +54,7 @@ export default function NewPurchasePage() {
       });
 
       const data = await response.json();
-      setExtractedData(data);
+      setReceiptData(data);
       setStep('products');
     } catch (error) {
       console.error('Error uploading receipt:', error);
@@ -49,19 +74,15 @@ export default function NewPurchasePage() {
       }
       setProductImages(images);
 
-      // Identify products using Gemini
       const response = await fetch('/api/identify-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ images }),
       });
 
-      const data = await response.json();
-      setExtractedData((prev: any) => ({
-        ...prev,
-        identifiedProducts: data,
-      }));
-
+      const products = await response.json();
+      setIdentifiedProducts(products);
+      performAutoMatching(receiptData?.items || [], products);
       setStep('reconciliation');
     } catch (error) {
       console.error('Error identifying products:', error);
@@ -69,6 +90,47 @@ export default function NewPurchasePage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function performAutoMatching(receiptItems: ReceiptItem[], products: IdentifiedProduct[]) {
+    const reconciled = receiptItems.map((item, idx) => {
+      const matched = products.find(
+        (p) => p.name.toLowerCase().includes(item.name.toLowerCase()) ||
+               item.name.toLowerCase().includes(p.name.toLowerCase())
+      );
+
+      return {
+        id: `item-${idx}`,
+        receiptName: item.name,
+        receiptPrice: item.price,
+        matchedProduct: matched || null,
+        status: matched ? 'auto-matched' : 'unmatched',
+      } as ReconciliationItem;
+    });
+
+    setReconciliation(reconciled);
+  }
+
+  function updateReconciliation(id: string, product: IdentifiedProduct | null) {
+    setReconciliation((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              matchedProduct: product,
+              status: product ? 'manual-matched' : 'unmatched',
+            }
+          : item
+      )
+    );
+  }
+
+  function setManualCategory(id: string, category: Category) {
+    setReconciliation((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, manualCategory: category } : item
+      )
+    );
   }
 
   function StepIndicator() {
@@ -111,7 +173,6 @@ export default function NewPurchasePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
             Nova Compra
@@ -119,7 +180,7 @@ export default function NewPurchasePage() {
           <p className="text-slate-600 dark:text-slate-400">
             {step === 'receipt' && 'Fotografe a nota fiscal de sua compra'}
             {step === 'products' && 'Fotografe os produtos comprados'}
-            {step === 'reconciliation' && 'Verifique e ajuste os itens'}
+            {step === 'reconciliation' && 'Revise e casque os itens'}
             {step === 'expiry' && 'Registre as datas de validade'}
             {step === 'done' && 'Compra registrada com sucesso!'}
           </p>
@@ -127,7 +188,6 @@ export default function NewPurchasePage() {
 
         <StepIndicator />
 
-        {/* Content */}
         <div className="space-y-6">
           {/* Step 1: Receipt Photo */}
           {step === 'receipt' && (
@@ -141,6 +201,22 @@ export default function NewPurchasePage() {
                       className="w-full h-full object-contain"
                     />
                   </div>
+                  {receiptData && (
+                    <div className="bg-white/50 dark:bg-white/10 p-4 rounded-glass">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white mb-2">
+                        Dados Extraídos:
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">
+                        <strong>Loja:</strong> {receiptData.store}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                        <strong>Data:</strong> {receiptData.date}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <strong>{receiptData.items?.length || 0} itens encontrados</strong>
+                      </p>
+                    </div>
+                  )}
                   <button
                     onClick={() => receiptInputRef.current?.click()}
                     className="w-full glass-button text-slate-700 dark:text-slate-300"
@@ -261,15 +337,90 @@ export default function NewPurchasePage() {
 
           {/* Step 3: Reconciliation */}
           {step === 'reconciliation' && (
-            <div className="glass p-8">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                Esta funcionalidade será implementada com a comparação automática entre itens da nota fiscal e produtos identificados.
-              </p>
+            <div className="glass p-8 space-y-4">
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {reconciliation.map((item) => (
+                  <div key={item.id} className="bg-white/50 dark:bg-white/10 p-4 rounded-glass">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-900 dark:text-white">
+                          {item.receiptName}
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          {formatCurrency(item.receiptPrice)}
+                        </p>
+                      </div>
+                      <div
+                        className={`px-2 py-1 rounded text-xs font-semibold ${
+                          item.status === 'auto-matched'
+                            ? 'bg-green-100 text-green-700'
+                            : item.status === 'manual-matched'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}
+                      >
+                        {item.status === 'auto-matched' && '✓ Automático'}
+                        {item.status === 'manual-matched' && '✓ Manual'}
+                        {item.status === 'unmatched' && '⚠ Não mapeado'}
+                      </div>
+                    </div>
+
+                    {item.matchedProduct ? (
+                      <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-green-900 dark:text-green-100">
+                            {item.matchedProduct.name}
+                          </p>
+                          <p className="text-xs text-green-700 dark:text-green-300">
+                            {CATEGORIES[item.matchedProduct.category].label}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => updateReconciliation(item.id, null)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <select
+                          value={item.manualCategory || ''}
+                          onChange={(e) => setManualCategory(item.id, e.target.value as Category)}
+                          className="w-full p-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                        >
+                          <option value="">Selecione uma categoria...</option>
+                          {Object.entries(CATEGORIES).map(([key, cat]) => (
+                            <option key={key} value={key}>
+                              {cat.icon} {cat.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="max-h-32 overflow-y-auto space-y-2">
+                          {identifiedProducts.map((product, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => updateReconciliation(item.id, product)}
+                              className="w-full text-left p-2 rounded bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-900 dark:text-blue-100 text-sm transition-colors"
+                            >
+                              <span className="font-semibold">{product.name}</span>
+                              <span className="text-xs ml-2 opacity-70">
+                                ({CATEGORIES[product.category].label})
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
               <button
                 onClick={() => setStep('expiry')}
                 className="w-full glass-button bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center gap-2"
               >
-                Continuar <ArrowRight size={20} />
+                Próximo <ArrowRight size={20} />
               </button>
             </div>
           )}
