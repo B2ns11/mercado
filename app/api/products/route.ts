@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabase, DEFAULT_USER_ID } from '@/lib/supabase';
+import { getSupabase, DEFAULT_USER_ID, describeSupabaseError } from '@/lib/supabase';
 import type { Product } from '@/types';
 
 /** Converte a linha do Postgres (snake_case) para o tipo usado no front. */
@@ -25,13 +25,13 @@ export async function GET() {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     return NextResponse.json((data ?? []).map(toProduct));
   } catch (error) {
     console.error('Error fetching products:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao carregar produtos' },
+      { error: describeSupabaseError(error) || 'Falha ao carregar produtos' },
       { status: 500 }
     );
   }
@@ -65,13 +65,13 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     return NextResponse.json(toProduct(data), { status: 201 });
   } catch (error) {
     console.error('Error creating product:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao criar produto' },
+      { error: describeSupabaseError(error) || 'Falha ao criar produto' },
       { status: 500 }
     );
   }

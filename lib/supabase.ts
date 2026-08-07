@@ -21,13 +21,24 @@ function normalizeSupabaseUrl(raw: string | undefined): string | undefined {
   return url;
 }
 
+function clean(value: string | undefined): string | undefined {
+  return value?.trim().replace(/^["']|["']$/g, '');
+}
+
 const supabaseUrl = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim().replace(
-  /^["']|["']$/g,
-  ''
-);
+const anonKey = clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+/**
+ * Chave de service role: ignora RLS. Só existe no servidor (sem NEXT_PUBLIC_),
+ * e todas as chamadas ao Supabase neste app acontecem em API routes, então ela
+ * nunca chega ao navegador. É o que permite gravar sem login com o RLS ligado.
+ */
+const serviceRoleKey = clean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+const supabaseKey = serviceRoleKey || anonKey;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+export const usingServiceRole = Boolean(serviceRoleKey);
 
 /**
  * Cliente Supabase. Lança apenas quando realmente usado sem configuração,
@@ -61,7 +72,9 @@ export function getSupabase() {
     );
   }
 
-  return createClient(supabaseUrl, supabaseKey);
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 /**
@@ -69,3 +82,75 @@ export function getSupabase() {
  * então usamos um UUID fixo para o app funcionar sem login.
  */
 export const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
+
+/**
+ * Traduz o erro de RLS para instruções acionáveis. Sem login, auth.uid() é null
+ * e as policies "auth.uid() = user_id" barram qualquer INSERT.
+ */
+export function describeSupabaseError(error: unknown): string {
+  // O supabase-js rejeita com PostgrestError (objeto simples com message/code/
+  // details/hint), não com Error — String(error) daria "[object Object]".
+  let message: string;
+  let code = '';
+
+  if (error instanceof Error) {
+    message = error.message;
+  } else if (error && typeof error === 'object') {
+    const e = error as { message?: string; code?: string; details?: string; hint?: string };
+    code = e.code ?? '';
+    message = [e.message, e.details, e.hint].filter(Boolean).join(' — ') || JSON.stringify(error);
+  } else {
+    message = String(error);
+  }
+
+  if (message.includes('ENOTFOUND') || message.includes('getaddrinfo')) {
+    return (
+      'Não foi possível alcançar o projeto do Supabase. Confira se a ' +
+      'NEXT_PUBLIC_SUPABASE_URL aponta para um projeto existente e ativo ' +
+      '(Settings > API > Project URL).'
+    );
+  }
+
+  if (message.includes('Invalid API key') || message.includes('JWT')) {
+    return (
+      'Chave do Supabase inválida. Copie novamente em Settings > API e ' +
+      'reinicie o servidor após editar o .env.local.'
+    );
+  }
+
+  if (
+    message.includes('does not exist') &&
+    (message.includes('relation') || message.includes('table'))
+  ) {
+    return (
+      'As tabelas não existem no banco. Rode o SQL de criação que está no ' +
+      'README (seção "Setup do Banco de Dados") no SQL Editor do Supabase.'
+    );
+  }
+
+  const isRlsError =
+    message.includes('row-level security') ||
+    message.includes('violates row-level security policy') ||
+    code === '42501' ||
+    message.includes('42501');
+
+  // Sem tratamento específico: devolve a mensagem sem o stack trace.
+  if (!isRlsError) return message.split('\n')[0].slice(0, 300);
+
+  if (usingServiceRole) {
+    return (
+      'O RLS bloqueou a operação mesmo com SUPABASE_SERVICE_ROLE_KEY definida. ' +
+      'Confirme que a chave é a service_role (Settings > API > service_role, ' +
+      'não a anon) e reinicie o servidor após editar o .env.local.'
+    );
+  }
+
+  return (
+    'O RLS do Supabase bloqueou a gravação porque ainda não existe login — ' +
+    'auth.uid() é nulo e as policies exigem auth.uid() = user_id. ' +
+    'Solução: copie a chave service_role em Settings > API e coloque no .env.local como ' +
+    'SUPABASE_SERVICE_ROLE_KEY=..., depois reinicie o servidor (npm run dev). ' +
+    'Ela só é usada no servidor e não vai para o navegador. ' +
+    'Veja a seção "RLS" no README para a alternativa.'
+  );
+}
