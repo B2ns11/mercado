@@ -31,6 +31,7 @@ export default function NewPurchasePage() {
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
   const [productImages, setProductImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [receiptData, setReceiptData] = useState<{
     store?: string;
     date?: string;
@@ -43,22 +44,32 @@ export default function NewPurchasePage() {
 
   async function handleReceiptUpload(file: File) {
     setLoading(true);
+    setError(null);
     try {
+      console.log('Converting file to base64...');
       const base64 = await fileToBase64(file);
       setReceiptImage(base64);
 
+      console.log('Sending request to /api/extract-receipt...');
       const response = await fetch('/api/extract-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64 }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error: ${errorData.error} - ${errorData.details}`);
+      }
+
       const data = await response.json();
+      console.log('Receipt data received:', data);
       setReceiptData(data);
       setStep('products');
-    } catch (error) {
-      console.error('Error uploading receipt:', error);
-      alert('Erro ao processar nota fiscal');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('Error uploading receipt:', errorMsg);
+      setError(`Erro ao processar nota fiscal: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -66,7 +77,9 @@ export default function NewPurchasePage() {
 
   async function handleProductsUpload(files: File[]) {
     setLoading(true);
+    setError(null);
     try {
+      console.log(`Converting ${files.length} files to base64...`);
       const images: string[] = [];
       for (const file of files) {
         const base64 = await fileToBase64(file);
@@ -74,19 +87,27 @@ export default function NewPurchasePage() {
       }
       setProductImages(images);
 
+      console.log('Sending request to /api/identify-products...');
       const response = await fetch('/api/identify-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ images }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error: ${errorData.error} - ${errorData.details}`);
+      }
+
       const products = await response.json();
+      console.log('Products identified:', products);
       setIdentifiedProducts(products);
       performAutoMatching(receiptData?.items || [], products);
       setStep('reconciliation');
-    } catch (error) {
-      console.error('Error identifying products:', error);
-      alert('Erro ao identificar produtos');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('Error identifying products:', errorMsg);
+      setError(`Erro ao identificar produtos: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -187,6 +208,19 @@ export default function NewPurchasePage() {
         </div>
 
         <StepIndicator />
+
+        {error && (
+          <div className="bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-200 p-4 rounded-glass">
+            <p className="font-semibold">Erro:</p>
+            <p className="text-sm mt-1">{error}</p>
+            <button
+              onClick={() => setError(null)}
+              className="text-xs mt-2 underline hover:no-underline"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
 
         <div className="space-y-6">
           {/* Step 1: Receipt Photo */}

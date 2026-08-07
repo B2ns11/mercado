@@ -12,13 +12,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('Extracting receipt data from image...');
     const extractedData = await extractReceiptData(image);
+    console.log('Receipt data extracted:', extractedData);
 
     return NextResponse.json(extractedData);
   } catch (error) {
     console.error('Error extracting receipt data:', error);
     return NextResponse.json(
-      { error: 'Failed to extract receipt data' },
+      { error: 'Failed to extract receipt data', details: String(error) },
       { status: 500 }
     );
   }

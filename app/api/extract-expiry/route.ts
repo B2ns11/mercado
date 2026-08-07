@@ -12,13 +12,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('Extracting expiry date from image...');
     const expiryDate = await extractExpiryDate(image);
+    console.log('Expiry date extracted:', expiryDate);
 
     return NextResponse.json({ expiryDate });
   } catch (error) {
     console.error('Error extracting expiry date:', error);
     return NextResponse.json(
-      { error: 'Failed to extract expiry date' },
+      { error: 'Failed to extract expiry date', details: String(error) },
       { status: 500 }
     );
   }
