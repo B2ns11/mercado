@@ -256,6 +256,39 @@ vercel
 
 A aplicação está otimizada para deploy em Vercel com Supabase como backend.
 
+## 🩺 Quando algo não funciona
+
+### `Invalid path specified in request URL`
+
+A `NEXT_PUBLIC_SUPABASE_URL` está malformada. Use exatamente a **Project URL**
+(Settings > API), no formato `https://xxxxxxxx.supabase.co` — sem barra no final,
+sem `/rest/v1` e sem ser o endereço do painel (`app.supabase.com/project/...`).
+O app normaliza barra extra, aspas e falta de `https://`, e avisa qual é o
+formato certo quando não dá para corrigir sozinho.
+
+### `Quota exceeded ... limit: 0`
+
+Sua chave do Gemini não tem cota gratuita liberada para aquele modelo. O app
+tenta os modelos em sequência (`gemini-2.0-flash`, `gemini-2.5-flash`,
+`gemini-flash-latest`, `gemini-1.5-flash`, `gemini-2.0-flash-lite`) e só
+desiste quando nenhum aceita.
+
+Para ver o que a sua chave enxerga, abra:
+
+```
+http://localhost:3000/api/gemini-check
+```
+
+Ele lista os modelos disponíveis para a chave configurada. Se a lista vier vazia
+ou o erro persistir com `limit: 0` em todos, o free tier não está liberado para o
+país do projeto — nesse caso é preciso ativar faturamento no Google AI Studio ou
+usar uma chave de outro projeto.
+
+### A IA demora ou falha em fotos grandes
+
+As fotos são reduzidas para 1600px e recomprimidas em JPEG antes do envio, o que
+corta o tamanho do upload sem prejudicar a leitura do texto da nota.
+
 ## 🐛 Conhecidas Limitações
 
 - Autenticação ainda não totalmente integrada

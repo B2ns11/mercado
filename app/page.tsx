@@ -31,7 +31,7 @@ export default function HomePage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(`${data.error} - ${data.details ?? ''}`);
+        throw new Error(data.error ?? 'Falha na requisição');
       }
 
       setProducts(Array.isArray(data) ? data : []);

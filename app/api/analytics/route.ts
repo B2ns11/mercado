@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error computing analytics:', error);
     return NextResponse.json(
-      { error: 'Falha ao calcular análises', details: String(error) },
+      { error: error instanceof Error ? error.message : 'Falha ao calcular análises' },
       { status: 500 }
     );
   }

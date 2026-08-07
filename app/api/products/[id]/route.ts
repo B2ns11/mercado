@@ -28,7 +28,7 @@ export async function PATCH(
   } catch (error) {
     console.error('Error updating product:', error);
     return NextResponse.json(
-      { error: 'Falha ao atualizar produto', details: String(error) },
+      { error: error instanceof Error ? error.message : 'Falha ao atualizar produto' },
       { status: 500 }
     );
   }
@@ -51,7 +51,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting product:', error);
     return NextResponse.json(
-      { error: 'Falha ao remover produto', details: String(error) },
+      { error: error instanceof Error ? error.message : 'Falha ao remover produto' },
       { status: 500 }
     );
   }
