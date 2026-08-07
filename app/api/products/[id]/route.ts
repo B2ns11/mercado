@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, describeSupabaseError } from '@/lib/supabase';
 
 export async function PATCH(
   request: NextRequest,
@@ -22,13 +22,13 @@ export async function PATCH(
       .update(updates)
       .eq('id', params.id);
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating product:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao atualizar produto' },
+      { error: describeSupabaseError(error) || 'Falha ao atualizar produto' },
       { status: 500 }
     );
   }
@@ -45,13 +45,13 @@ export async function DELETE(
       .delete()
       .eq('id', params.id);
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting product:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao remover produto' },
+      { error: describeSupabaseError(error) || 'Falha ao remover produto' },
       { status: 500 }
     );
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabase, DEFAULT_USER_ID } from '@/lib/supabase';
+import { getSupabase, DEFAULT_USER_ID, describeSupabaseError } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     const purchases = (data ?? []).map((row: any) => ({
       id: row.id,
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching purchases:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao carregar compras' },
+      { error: describeSupabaseError(error) || 'Falha ao carregar compras' },
       { status: 500 }
     );
   }
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (purchaseError) throw new Error(purchaseError.message);
+    if (purchaseError) throw purchaseError;
 
     // Os produtos da compra entram no estoque.
     if (products.length > 0) {
@@ -98,14 +98,14 @@ export async function POST(request: NextRequest) {
       }));
 
       const { error: productsError } = await supabase.from('products').insert(rows);
-      if (productsError) throw new Error(productsError.message);
+      if (productsError) throw productsError;
     }
 
     return NextResponse.json({ id: purchase.id, totalAmount }, { status: 201 });
   } catch (error) {
     console.error('Error creating purchase:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao salvar compra' },
+      { error: describeSupabaseError(error) || 'Falha ao salvar compra' },
       { status: 500 }
     );
   }

@@ -66,19 +66,39 @@ GEMINI_API_KEY=AIzaSy...
 > A chave do Gemini é lida no servidor (API routes). `NEXT_PUBLIC_GEMINI_API_KEY`
 > continua funcionando, mas expõe a chave no navegador — prefira `GEMINI_API_KEY`.
 
-### Sem autenticação ainda
+### RLS: `new row violates row-level security policy`
 
-As tabelas exigem `user_id`. Enquanto o login não existe, o app grava tudo com um
-UUID fixo (`DEFAULT_USER_ID` em `lib/supabase.ts`). Para isso funcionar, as
-policies de RLS precisam permitir acesso anônimo — em desenvolvimento, o caminho
-mais simples é desativar o RLS nas duas tabelas:
+As tabelas exigem `user_id` e as policies checam `auth.uid() = user_id`. Como o
+login ainda não existe, `auth.uid()` é nulo e **toda gravação é bloqueada**. O app
+grava com um UUID fixo (`DEFAULT_USER_ID` em `lib/supabase.ts`).
+
+**Solução recomendada — chave service_role:**
+
+Em Settings > API, copie a chave `service_role` e adicione ao `.env.local`:
+
+```env
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+```
+
+Reinicie o servidor. Essa chave ignora o RLS, e como **não** tem o prefixo
+`NEXT_PUBLIC_` e todas as chamadas ao Supabase acontecem em API routes, ela nunca
+chega ao navegador. O RLS continua protegendo qualquer acesso direto ao banco.
+
+> Nunca coloque essa chave em variável `NEXT_PUBLIC_*` e nunca a use em código de
+> cliente — ela dá acesso total ao banco.
+
+**Alternativa — desligar o RLS (só em desenvolvimento):**
 
 ```sql
 ALTER TABLE products DISABLE ROW LEVEL SECURITY;
 ALTER TABLE purchases DISABLE ROW LEVEL SECURITY;
 ```
 
-Reative o RLS assim que a autenticação com Supabase Auth for implementada.
+Isso deixa as tabelas abertas para qualquer um com a anon key. Só faça em projeto
+de teste.
+
+Nos dois casos, o caminho definitivo é implementar o Supabase Auth e voltar a
+depender das policies.
 
 ### 3. Setup do Banco de Dados (Supabase)
 
@@ -257,6 +277,17 @@ vercel
 A aplicação está otimizada para deploy em Vercel com Supabase como backend.
 
 ## 🩺 Quando algo não funciona
+
+Com o servidor rodando, dois endpoints de diagnóstico dizem o que está errado:
+
+| Endpoint | O que verifica |
+|---|---|
+| `/api/supabase-check` | leitura nas duas tabelas e uma gravação real (desfeita em seguida), detectando bloqueio de RLS |
+| `/api/gemini-check` | quais modelos a sua chave do Gemini consegue usar |
+
+### `new row violates row-level security policy`
+
+Veja a seção **RLS** acima — resolve com `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### `Invalid path specified in request URL`
 

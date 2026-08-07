@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, describeSupabaseError } from '@/lib/supabase';
 import { CATEGORIES } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       .gte('created_at', start)
       .lt('created_at', end);
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     const totals: Record<string, number> = {};
     Object.keys(CATEGORIES).forEach((cat) => {
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error computing analytics:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao calcular análises' },
+      { error: describeSupabaseError(error) || 'Falha ao calcular análises' },
       { status: 500 }
     );
   }
