@@ -3,7 +3,7 @@ import {
   getSupabase,
   usingServiceRole,
   describeSupabaseError,
-  DEFAULT_USER_ID,
+  getDefaultUserId,
 } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -34,12 +34,24 @@ export async function GET() {
     result[`leitura_${table}`] = error ? describeSupabaseError(error) : 'ok';
   }
 
+  // Resolve (ou cria) o usuário local — é o que satisfaz a FK para auth.users.
+  let userId: string;
+  try {
+    userId = await getDefaultUserId();
+    result.usuarioLocal = userId;
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, ...result, usuarioLocal: describeSupabaseError(error) },
+      { status: 500 }
+    );
+  }
+
   // Gravação real, desfeita logo em seguida.
   const { data, error: insertError } = await supabase
     .from('purchases')
     .insert([
       {
-        user_id: DEFAULT_USER_ID,
+        user_id: userId,
         receipt_photo: '',
         receipt_date: new Date().toISOString().slice(0, 10),
         total_amount: 0,

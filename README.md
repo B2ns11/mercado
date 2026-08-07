@@ -289,6 +289,22 @@ Com o servidor rodando, dois endpoints de diagnóstico dizem o que está errado:
 
 Veja a seção **RLS** acima — resolve com `SUPABASE_SERVICE_ROLE_KEY`.
 
+### `violates foreign key constraint "purchases_user_id_fkey"`
+
+A coluna `user_id` referencia `auth.users`, então um UUID inventado é rejeitado.
+
+Com `SUPABASE_SERVICE_ROLE_KEY` definida o app resolve isso sozinho: cria uma vez
+um usuário `local@mercado.app` pela Admin API e passa a usar o id real dele. Não
+há passo manual — se o erro apareceu, é sinal de que a chave não está definida ou
+não é a `service_role`.
+
+Se preferir não usar a service_role, remova as FKs (só em projeto de teste):
+
+```sql
+ALTER TABLE purchases DROP CONSTRAINT purchases_user_id_fkey;
+ALTER TABLE products DROP CONSTRAINT products_user_id_fkey;
+```
+
 ### `Invalid path specified in request URL`
 
 A `NEXT_PUBLIC_SUPABASE_URL` está malformada. Use exatamente a **Project URL**
