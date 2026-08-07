@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabase, DEFAULT_USER_ID, describeSupabaseError } from '@/lib/supabase';
+import { getSupabase, getDefaultUserId, describeSupabaseError } from '@/lib/supabase';
 import type { Product } from '@/types';
 
 /** Converte a linha do Postgres (snake_case) para o tipo usado no front. */
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       .from('products')
       .insert([
         {
-          user_id: body.userId ?? DEFAULT_USER_ID,
+          user_id: body.userId ?? (await getDefaultUserId()),
           name: body.name,
           category: body.category,
           quantity: body.quantity ?? 1,

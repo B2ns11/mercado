@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabase, DEFAULT_USER_ID, describeSupabaseError } from '@/lib/supabase';
+import { getSupabase, getDefaultUserId, describeSupabaseError } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const userId = body.userId ?? DEFAULT_USER_ID;
+    const userId = body.userId ?? (await getDefaultUserId());
     const products: any[] = body.products ?? [];
 
     if (!body.receiptDate) {

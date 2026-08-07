@@ -80,8 +80,58 @@ export function getSupabase() {
 /**
  * Usuário único enquanto a autenticação não existe. As tabelas exigem user_id,
  * então usamos um UUID fixo para o app funcionar sem login.
+ *
+ * Só serve quando a FK para auth.users foi removida — veja getDefaultUserId().
  */
 export const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
+
+/** E-mail do usuário local criado automaticamente enquanto não há login. */
+const LOCAL_USER_EMAIL = 'local@mercado.app';
+
+let cachedUserId: string | null = null;
+
+/**
+ * user_id tem FK para auth.users, então um UUID inventado é rejeitado com
+ * "violates foreign key constraint". Com a service_role dá para criar (ou
+ * reaproveitar) um usuário de verdade pela Admin API, sem SQL manual.
+ */
+export async function getDefaultUserId(): Promise<string> {
+  if (cachedUserId) return cachedUserId;
+
+  if (!usingServiceRole) {
+    // Sem service_role não há acesso à Admin API; resta o UUID fixo, que só
+    // funciona se a FK tiver sido removida.
+    return DEFAULT_USER_ID;
+  }
+
+  const supabase = getSupabase();
+
+  const { data: created, error: createError } = await supabase.auth.admin.createUser({
+    email: LOCAL_USER_EMAIL,
+    email_confirm: true,
+    user_metadata: { criadoPor: 'mercado-app', motivo: 'uso local sem login' },
+  });
+
+  if (!createError && created?.user) {
+    cachedUserId = created.user.id;
+    return cachedUserId;
+  }
+
+  // Já existe de execuções anteriores: procura o id dele.
+  const { data: list, error: listError } = await supabase.auth.admin.listUsers();
+
+  const existing = list?.users?.find((u) => u.email === LOCAL_USER_EMAIL);
+  if (existing) {
+    cachedUserId = existing.id;
+    return cachedUserId;
+  }
+
+  throw new Error(
+    'Não foi possível criar o usuário local no Supabase Auth. ' +
+      `Erro: ${createError?.message ?? listError?.message ?? 'desconhecido'}. ` +
+      'Confirme que SUPABASE_SERVICE_ROLE_KEY é mesmo a chave service_role.'
+  );
+}
 
 /**
  * Traduz o erro de RLS para instruções acionáveis. Sem login, auth.uid() é null
@@ -108,6 +158,19 @@ export function describeSupabaseError(error: unknown): string {
       'Não foi possível alcançar o projeto do Supabase. Confira se a ' +
       'NEXT_PUBLIC_SUPABASE_URL aponta para um projeto existente e ativo ' +
       '(Settings > API > Project URL).'
+    );
+  }
+
+  if (
+    message.includes('foreign key constraint') &&
+    (message.includes('user_id') || message.includes('users'))
+  ) {
+    return (
+      'O user_id usado não existe em auth.users. Com SUPABASE_SERVICE_ROLE_KEY ' +
+      'definida o app cria esse usuário sozinho — confirme que a chave é a ' +
+      'service_role e reinicie o servidor. Alternativa: remover a FK com ' +
+      'ALTER TABLE purchases DROP CONSTRAINT purchases_user_id_fkey; ' +
+      'ALTER TABLE products DROP CONSTRAINT products_user_id_fkey;'
     );
   }
 
