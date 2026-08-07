@@ -1,6 +1,10 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  // 'class' em vez do padrão 'media': as variantes dark: só ligam se a classe
+  // .dark for adicionada no html. Sem isso o tema escuro do sistema deixava
+  // a interface toda escura e o texto ilegível.
+  darkMode: 'class',
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',

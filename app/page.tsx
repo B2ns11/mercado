@@ -13,6 +13,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showExpiringSoon, setShowExpiringSoon] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadProducts();
@@ -24,12 +25,20 @@ export default function HomePage() {
 
   async function loadProducts() {
     setLoading(true);
+    setLoadError(null);
     try {
       const response = await fetch('/api/products');
       const data = await response.json();
-      setProducts(data || []);
+
+      if (!response.ok) {
+        throw new Error(`${data.error} - ${data.details ?? ''}`);
+      }
+
+      setProducts(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Failed to load products:', error);
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Failed to load products:', message);
+      setLoadError(message);
     } finally {
       setLoading(false);
     }
@@ -94,7 +103,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       {/* Header */}
-      <div className="sticky top-0 z-50 glass-light dark:glass-dark border-b border-white/20 dark:border-white/10">
+      <div className="sticky top-0 z-50 glass border-b border-white/20 dark:border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -168,6 +177,16 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+
+        {loadError && (
+          <div className="mb-6 bg-red-100 border border-red-300 text-red-800 p-4 rounded-glass">
+            <p className="font-semibold">Erro ao carregar produtos</p>
+            <p className="text-sm mt-1 break-words">{loadError}</p>
+            <p className="text-xs mt-2">
+              Verifique as variáveis do Supabase no .env.local e se as tabelas foram criadas.
+            </p>
+          </div>
+        )}
 
         {/* Products Grid */}
         {loading ? (
@@ -258,7 +277,7 @@ export default function HomePage() {
       </div>
 
       {/* Navigation Footer */}
-      <div className="fixed bottom-0 left-0 right-0 glass-light dark:glass-dark border-t border-white/20 dark:border-white/10 px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 glass border-t border-white/20 dark:border-white/10 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-around">
           <Link href="/" className="flex flex-col items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold">
             <span>🏠</span>

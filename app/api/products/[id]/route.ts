@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabase } from '@/lib/supabase';
 
 export async function PATCH(
   request: NextRequest,
@@ -6,19 +7,29 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
+    const updates: Record<string, unknown> = {};
 
-    // TODO: Update in Supabase
-    // const { data, error } = await supabase
-    //   .from('products')
-    //   .update(body)
-    //   .eq('id', params.id)
-    //   .select();
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.category !== undefined) updates.category = body.category;
+    if (body.quantity !== undefined) updates.quantity = body.quantity;
+    if (body.unit !== undefined) updates.unit = body.unit;
+    if (body.price !== undefined) updates.price = body.price;
+    if (body.expiryDate !== undefined) updates.expiry_date = body.expiryDate;
+
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from('products')
+      .update(updates)
+      .eq('id', params.id);
+
+    if (error) throw new Error(error.message);
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Error updating product:', error);
     return NextResponse.json(
-      { error: 'Failed to update product' },
-      { status: 400 }
+      { error: 'Falha ao atualizar produto', details: String(error) },
+      { status: 500 }
     );
   }
 }
@@ -28,17 +39,20 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // TODO: Delete from Supabase
-    // const { error } = await supabase
-    //   .from('products')
-    //   .delete()
-    //   .eq('id', params.id);
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', params.id);
+
+    if (error) throw new Error(error.message);
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Error deleting product:', error);
     return NextResponse.json(
-      { error: 'Failed to delete product' },
-      { status: 400 }
+      { error: 'Falha ao remover produto', details: String(error) },
+      { status: 500 }
     );
   }
 }

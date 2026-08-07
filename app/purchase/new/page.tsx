@@ -23,7 +23,13 @@ interface ReconciliationItem {
   receiptPrice: number;
   matchedProduct?: IdentifiedProduct | null;
   manualCategory?: Category;
+  expiryDate?: string;
   status: 'auto-matched' | 'manual-matched' | 'unmatched';
+}
+
+/** Categoria final do item: a do produto casado ou a escolhida à mão. */
+function resolveCategory(item: ReconciliationItem): Category {
+  return item.matchedProduct?.category ?? item.manualCategory ?? 'alimentos';
 }
 
 export default function NewPurchasePage() {
@@ -154,6 +160,82 @@ export default function NewPurchasePage() {
     );
   }
 
+  function setExpiryDate(id: string, date: string) {
+    setReconciliation((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, expiryDate: date } : item))
+    );
+  }
+
+  /** Foto do rótulo → Gemini extrai a data e preenche o campo. */
+  async function handleExpiryPhoto(id: string, file: File) {
+    setLoading(true);
+    setError(null);
+    try {
+      const base64 = await fileToBase64(file);
+      const response = await fetch('/api/extract-expiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`${data.error} - ${data.details ?? ''}`);
+      }
+
+      if (data.expiryDate) {
+        setExpiryDate(id, data.expiryDate);
+      } else {
+        setError('Não foi possível ler a data nesta foto. Preencha manualmente.');
+      }
+    } catch (err) {
+      setError(
+        `Erro ao ler validade: ${err instanceof Error ? err.message : 'desconhecido'}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function savePurchase() {
+    setLoading(true);
+    setError(null);
+    try {
+      const products = reconciliation.map((item) => ({
+        name: item.matchedProduct?.name ?? item.receiptName,
+        category: resolveCategory(item),
+        quantity: 1,
+        unit: 'un',
+        price: item.receiptPrice,
+        expiryDate: item.expiryDate || null,
+      }));
+
+      const response = await fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          receiptPhoto: receiptImage ? `data:image/jpeg;base64,${receiptImage}` : '',
+          receiptDate: receiptData?.date || new Date().toISOString().slice(0, 10),
+          totalAmount: reconciliation.reduce((sum, i) => sum + i.receiptPrice, 0),
+          products,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`${data.error} - ${data.details ?? ''}`);
+      }
+
+      setStep('done');
+    } catch (err) {
+      setError(
+        `Erro ao salvar compra: ${err instanceof Error ? err.message : 'desconhecido'}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function StepIndicator() {
     const steps: { id: Step; label: string }[] = [
       { id: 'receipt', label: 'Nota Fiscal' },
@@ -209,10 +291,19 @@ export default function NewPurchasePage() {
 
         <StepIndicator />
 
+        {loading && (
+          <div className="mb-4 bg-blue-50 border border-blue-300 text-blue-800 p-4 rounded-glass flex items-center gap-3">
+            <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-medium">
+              Processando com a IA... isso pode levar alguns segundos.
+            </span>
+          </div>
+        )}
+
         {error && (
-          <div className="bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-200 p-4 rounded-glass">
+          <div className="mb-4 bg-red-100 border border-red-300 text-red-800 p-4 rounded-glass">
             <p className="font-semibold">Erro:</p>
-            <p className="text-sm mt-1">{error}</p>
+            <p className="text-sm mt-1 break-words">{error}</p>
             <button
               onClick={() => setError(null)}
               className="text-xs mt-2 underline hover:no-underline"
@@ -461,15 +552,57 @@ export default function NewPurchasePage() {
 
           {/* Step 4: Expiry Dates */}
           {step === 'expiry' && (
-            <div className="glass p-8">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                Configure as datas de validade dos produtos. Você pode fotografar as datas ou preenchê-las manualmente.
+            <div className="glass p-8 space-y-4">
+              <p className="text-sm text-slate-600">
+                Informe as validades. Você pode digitar a data ou fotografar o rótulo
+                para a IA ler. Itens sem data ficam sem alerta de vencimento.
               </p>
+
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {reconciliation.map((item) => (
+                  <div key={item.id} className="bg-white/60 p-4 rounded-glass">
+                    <p className="font-semibold text-slate-900 mb-1">
+                      {item.matchedProduct?.name ?? item.receiptName}
+                    </p>
+                    <p className="text-xs text-slate-600 mb-3">
+                      {CATEGORIES[resolveCategory(item)].icon}{' '}
+                      {CATEGORIES[resolveCategory(item)].label} ·{' '}
+                      {formatCurrency(item.receiptPrice)}
+                    </p>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="date"
+                        value={item.expiryDate ?? ''}
+                        onChange={(e) => setExpiryDate(item.id, e.target.value)}
+                        className="flex-1 p-2 rounded border border-slate-300 text-sm"
+                      />
+                      <label className="glass-button cursor-pointer flex items-center gap-1 text-sm text-slate-700">
+                        <Camera size={16} />
+                        Foto
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              handleExpiryPhoto(item.id, e.target.files[0]);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <button
-                onClick={() => setStep('done')}
-                className="w-full glass-button bg-green-500 hover:bg-green-600 text-white flex items-center justify-center gap-2"
+                onClick={savePurchase}
+                disabled={loading}
+                className="w-full glass-button bg-green-500 hover:bg-green-600 text-white flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                Salvar Compra <ArrowRight size={20} />
+                {loading ? 'Salvando...' : 'Salvar Compra'} <ArrowRight size={20} />
               </button>
             </div>
           )}

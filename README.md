@@ -58,10 +58,27 @@ cp .env.example .env.local
 Preencha com suas credenciais:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
+NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+GEMINI_API_KEY=AIzaSy...
 ```
+
+> A chave do Gemini é lida no servidor (API routes). `NEXT_PUBLIC_GEMINI_API_KEY`
+> continua funcionando, mas expõe a chave no navegador — prefira `GEMINI_API_KEY`.
+
+### Sem autenticação ainda
+
+As tabelas exigem `user_id`. Enquanto o login não existe, o app grava tudo com um
+UUID fixo (`DEFAULT_USER_ID` em `lib/supabase.ts`). Para isso funcionar, as
+policies de RLS precisam permitir acesso anônimo — em desenvolvimento, o caminho
+mais simples é desativar o RLS nas duas tabelas:
+
+```sql
+ALTER TABLE products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE purchases DISABLE ROW LEVEL SECURITY;
+```
+
+Reative o RLS assim que a autenticação com Supabase Auth for implementada.
 
 ### 3. Setup do Banco de Dados (Supabase)
 
