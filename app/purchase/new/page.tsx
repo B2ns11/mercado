@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { ArrowRight, Camera } from 'lucide-react';
 import { fileToCompressedBase64, CATEGORIES, formatCurrency } from '@/lib/utils';
 import type { Category, ReceiptItem } from '@/types';
+import ThemeToggle from '@/components/ThemeToggle';
 
 type Step = 'receipt' | 'review' | 'expiry' | 'done';
 
@@ -175,7 +176,7 @@ export default function NewPurchasePage() {
               className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
                 idx <= currentIndex
                   ? 'bg-blue-500 text-white'
-                  : 'bg-slate-200 text-slate-600'
+                  : 'bg-slate-300 dark:bg-slate-700 texto-suave'
               }`}
             >
               {idx + 1}
@@ -183,7 +184,7 @@ export default function NewPurchasePage() {
             {idx < STEPS.length - 1 && (
               <div
                 className={`flex-1 h-1 mx-2 transition-all ${
-                  idx < currentIndex ? 'bg-blue-500' : 'bg-slate-200'
+                  idx < currentIndex ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               />
             )}
@@ -194,11 +195,15 @@ export default function NewPurchasePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 p-4">
+    <div className="min-h-screen p-4">
       <div className="max-w-2xl mx-auto">
+        <div className="flex justify-end mb-2">
+          <ThemeToggle />
+        </div>
+
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Nova Compra</h1>
-          <p className="text-slate-600">
+          <h1 className="text-3xl font-bold mb-2">Nova Compra</h1>
+          <p className="texto-suave">
             {step === 'receipt' && 'Fotografe a nota fiscal da sua compra'}
             {step === 'review' && 'Confira os itens lidos da nota'}
             {step === 'expiry' && 'Registre as datas de validade'}
@@ -209,7 +214,7 @@ export default function NewPurchasePage() {
         <StepIndicator />
 
         {loading && (
-          <div className="mb-4 bg-blue-50 border border-blue-300 text-blue-800 p-4 rounded-glass flex items-center gap-3">
+          <div className="mb-4 bg-blue-50 dark:bg-blue-950 border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-200 p-4 rounded-glass flex items-center gap-3">
             <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm font-medium">
               Processando com a IA... isso pode levar alguns segundos.
@@ -218,7 +223,7 @@ export default function NewPurchasePage() {
         )}
 
         {error && (
-          <div className="mb-4 bg-red-100 border border-red-300 text-red-800 p-4 rounded-glass">
+          <div className="mb-4 bg-red-100 dark:bg-red-950 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 p-4 rounded-glass">
             <p className="font-semibold">Erro:</p>
             <p className="text-sm mt-1 break-words">{error}</p>
             <button
@@ -236,13 +241,13 @@ export default function NewPurchasePage() {
             <div className="glass p-8">
               <div
                 onClick={() => receiptInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-300 rounded-glass p-12 text-center cursor-pointer hover:border-blue-500 transition-colors"
+                className="border-2 border-dashed rounded-glass p-12 text-center cursor-pointer hover:border-blue-500 transition-colors"
               >
                 <Camera className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-                <p className="font-semibold text-slate-700 mb-2">
+                <p className="font-semibold mb-2">
                   Fotografar Nota Fiscal
                 </p>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm texto-suave">
                   A IA lê os produtos, quantidades, preços e já classifica por categoria
                 </p>
               </div>
@@ -263,23 +268,23 @@ export default function NewPurchasePage() {
           {/* Etapa 2: revisão dos itens */}
           {step === 'review' && (
             <div className="glass p-6 space-y-4">
-              <div className="flex flex-wrap gap-3 pb-4 border-b border-slate-200">
+              <div className="flex flex-wrap gap-3 pb-4 border-b">
                 <label className="flex-1 min-w-[180px]">
-                  <span className="block text-xs text-slate-600 mb-1">Loja</span>
+                  <span className="block text-xs texto-suave mb-1">Loja</span>
                   <input
                     type="text"
                     value={store}
                     onChange={(e) => setStore(e.target.value)}
-                    className="w-full p-2 rounded border border-slate-300 text-sm"
+                    className="w-full p-2 rounded border text-sm"
                   />
                 </label>
                 <label className="w-44">
-                  <span className="block text-xs text-slate-600 mb-1">Data da compra</span>
+                  <span className="block text-xs texto-suave mb-1">Data da compra</span>
                   <input
                     type="date"
                     value={purchaseDate}
                     onChange={(e) => setPurchaseDate(e.target.value)}
-                    className="w-full p-2 rounded border border-slate-300 text-sm"
+                    className="w-full p-2 rounded border text-sm"
                   />
                 </label>
               </div>
@@ -292,14 +297,14 @@ export default function NewPurchasePage() {
 
               <div className="space-y-3 max-h-[28rem] overflow-y-auto">
                 {items.map((item) => (
-                  <div key={item.id} className="bg-white/60 p-4 rounded-glass">
+                  <div key={item.id} className="glass-card">
                     <div className="flex gap-2 mb-2">
                       <input
                         type="text"
                         value={item.name}
                         placeholder="Nome do produto"
                         onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                        className="flex-1 p-2 rounded border border-slate-300 text-sm font-semibold"
+                        className="flex-1 p-2 rounded border text-sm font-semibold"
                       />
                       <button
                         onClick={() => removeItem(item.id)}
@@ -315,7 +320,7 @@ export default function NewPurchasePage() {
                       onChange={(e) =>
                         updateItem(item.id, { category: e.target.value as Category })
                       }
-                      className="w-full p-2 mb-2 rounded border border-slate-300 text-sm"
+                      className="w-full p-2 mb-2 rounded border text-sm"
                     >
                       {Object.entries(CATEGORIES).map(([key, cat]) => (
                         <option key={key} value={key}>
@@ -326,7 +331,7 @@ export default function NewPurchasePage() {
 
                     <div className="flex gap-2">
                       <label className="w-24">
-                        <span className="block text-xs text-slate-600 mb-1">Qtd.</span>
+                        <span className="block text-xs texto-suave mb-1">Qtd.</span>
                         <input
                           type="number"
                           step="0.001"
@@ -335,20 +340,20 @@ export default function NewPurchasePage() {
                           onChange={(e) =>
                             updateItem(item.id, { quantity: Number(e.target.value) || 0 })
                           }
-                          className="w-full p-2 rounded border border-slate-300 text-sm"
+                          className="w-full p-2 rounded border text-sm"
                         />
                       </label>
                       <label className="w-20">
-                        <span className="block text-xs text-slate-600 mb-1">Un.</span>
+                        <span className="block text-xs texto-suave mb-1">Un.</span>
                         <input
                           type="text"
                           value={item.unit}
                           onChange={(e) => updateItem(item.id, { unit: e.target.value })}
-                          className="w-full p-2 rounded border border-slate-300 text-sm"
+                          className="w-full p-2 rounded border text-sm"
                         />
                       </label>
                       <label className="flex-1">
-                        <span className="block text-xs text-slate-600 mb-1">
+                        <span className="block text-xs texto-suave mb-1">
                           Preço unitário (R$)
                         </span>
                         <input
@@ -362,20 +367,20 @@ export default function NewPurchasePage() {
                           className={`w-full p-2 rounded border text-sm ${
                             item.unitPrice > 0
                               ? 'border-slate-300'
-                              : 'border-yellow-400 bg-yellow-50'
+                              : 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950/40'
                           }`}
                         />
                       </label>
                       <div className="w-28 text-right">
-                        <span className="block text-xs text-slate-600 mb-1">Subtotal</span>
-                        <span className="block p-2 text-sm font-semibold text-slate-800">
+                        <span className="block text-xs texto-suave mb-1">Subtotal</span>
+                        <span className="block p-2 text-sm font-semibold">
                           {formatCurrency(item.unitPrice * item.quantity)}
                         </span>
                       </div>
                     </div>
 
                     {item.unitPrice === 0 && (
-                      <p className="text-xs text-yellow-700 mt-2">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-2">
                         Preço não lido da nota. Digite o valor, senão o item entra
                         como R$ 0,00 e não aparece nos gastos.
                       </p>
@@ -386,13 +391,13 @@ export default function NewPurchasePage() {
 
               <button
                 onClick={addItem}
-                className="w-full glass-button text-slate-700 text-sm"
+                className="w-full glass-button text-sm"
               >
                 + Adicionar item que faltou
               </button>
 
-              <div className="flex items-center justify-between px-2 py-3 border-t border-slate-200">
-                <span className="font-semibold text-slate-700">Total da compra</span>
+              <div className="flex items-center justify-between px-2 py-3 border-t">
+                <span className="font-semibold">Total da compra</span>
                 <span className="text-xl font-bold text-blue-600">
                   {formatCurrency(total)}
                 </span>
@@ -411,16 +416,16 @@ export default function NewPurchasePage() {
           {/* Etapa 3: validades */}
           {step === 'expiry' && (
             <div className="glass p-6 space-y-4">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm texto-suave">
                 Informe as validades. Você pode digitar a data ou fotografar o
                 rótulo para a IA ler. Itens sem data ficam sem alerta de vencimento.
               </p>
 
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {items.map((item) => (
-                  <div key={item.id} className="bg-white/60 p-4 rounded-glass">
-                    <p className="font-semibold text-slate-900 mb-1">{item.name}</p>
-                    <p className="text-xs text-slate-600 mb-3">
+                  <div key={item.id} className="glass-card">
+                    <p className="font-semibold mb-1">{item.name}</p>
+                    <p className="text-xs texto-suave mb-3">
                       {CATEGORIES[item.category].icon} {CATEGORIES[item.category].label}{' '}
                       · {item.quantity} {item.unit} ·{' '}
                       {formatCurrency(item.unitPrice * item.quantity)}
@@ -431,9 +436,9 @@ export default function NewPurchasePage() {
                         type="date"
                         value={item.expiryDate ?? ''}
                         onChange={(e) => updateItem(item.id, { expiryDate: e.target.value })}
-                        className="flex-1 p-2 rounded border border-slate-300 text-sm"
+                        className="flex-1 p-2 rounded border text-sm"
                       />
-                      <label className="glass-button cursor-pointer flex items-center gap-1 text-sm text-slate-700">
+                      <label className="glass-button cursor-pointer flex items-center gap-1 text-sm">
                         <Camera size={16} />
                         Foto
                         <input
@@ -456,7 +461,7 @@ export default function NewPurchasePage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => setStep('review')}
-                  className="glass-button text-slate-700"
+                  className="glass-button"
                 >
                   Voltar
                 </button>
@@ -475,10 +480,10 @@ export default function NewPurchasePage() {
           {step === 'done' && (
             <div className="glass p-8 text-center">
               <div className="text-5xl mb-4">✅</div>
-              <p className="text-xl font-semibold text-slate-900 mb-2">
+              <p className="text-xl font-semibold mb-2">
                 Compra Registrada!
               </p>
-              <p className="text-slate-600 mb-6">
+              <p className="texto-suave mb-6">
                 {items.length} {items.length === 1 ? 'produto foi adicionado' : 'produtos foram adicionados'}{' '}
                 ao estoque, totalizando {formatCurrency(total)}.
               </p>

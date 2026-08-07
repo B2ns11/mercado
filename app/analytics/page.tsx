@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { CATEGORIES, formatCurrency, formatDate } from '@/lib/utils';
 import type { Purchase, PurchaseAnalytics } from '@/types';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function AnalyticsPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -78,13 +79,12 @@ export default function AnalyticsPage() {
   }).format(new Date(selectedYear, selectedMonth - 1));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-20">
+    <div className="min-h-screen pb-20">
       {/* Header */}
-      <div className="sticky top-0 z-50 glass border-b border-white/20 dark:border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-            📊 Minhas Compras
-          </h1>
+      <div className="sticky top-0 z-50 glass border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <h1 className="text-3xl font-bold">📊 Minhas Compras</h1>
+          <ThemeToggle />
         </div>
       </div>
 
@@ -95,16 +95,16 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={previousMonth}
-              className="glass-button text-slate-700 dark:text-slate-300"
+              className="glass-button"
             >
               <ChevronLeft size={20} />
             </button>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">
+            <h2 className="text-2xl font-bold capitalize">
               {monthName}
             </h2>
             <button
               onClick={nextMonth}
-              className="glass-button text-slate-700 dark:text-slate-300"
+              className="glass-button"
             >
               <ChevronRight size={20} />
             </button>
@@ -113,7 +113,7 @@ export default function AnalyticsPage() {
           {/* Total Spending */}
           {analytics && (
             <div className="text-center">
-              <p className="text-slate-600 dark:text-slate-400 mb-2">
+              <p className="texto-suave mb-2">
                 Total Gasto
               </p>
               <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">
@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
         </div>
 
         {loadError && (
-          <div className="mb-6 bg-red-100 border border-red-300 text-red-800 p-4 rounded-glass">
+          <div className="mb-6 bg-red-100 dark:bg-red-950 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 p-4 rounded-glass">
             <p className="font-semibold">Erro ao carregar dados</p>
             <p className="text-sm mt-1 break-words">{loadError}</p>
           </div>
@@ -132,7 +132,7 @@ export default function AnalyticsPage() {
 
         {/* Explica um total zerado em vez de deixar a tela muda. */}
         {!loading && diagnostico && analytics?.totalAmount === 0 && (
-          <div className="mb-6 bg-yellow-50 border border-yellow-300 text-yellow-900 p-4 rounded-glass">
+          <div className="mb-6 bg-yellow-50 dark:bg-yellow-950 border border-yellow-300 dark:border-yellow-800 text-yellow-900 dark:text-yellow-200 p-4 rounded-glass">
             <p className="font-semibold mb-1">Por que está tudo zerado?</p>
 
             {diagnostico.produtosNoBanco === 0 ? (
@@ -169,10 +169,10 @@ export default function AnalyticsPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-3xl">{category.icon}</span>
                       <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">
+                        <p className="font-semibold">
                           {category.label}
                         </p>
-                        <p className="text-2xl font-bold text-slate-700 dark:text-slate-300">
+                        <p className="text-2xl font-bold">
                           {formatCurrency(catData.amount)}
                         </p>
                       </div>
@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="w-full bg-white/50 dark:bg-white/10 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-black/10 dark:bg-white/10 rounded-full h-2 overflow-hidden">
                     <div
                       className={`h-full bg-gradient-to-r ${category.color}`}
                       style={{ width: `${catData.percentage}%` }}
@@ -199,16 +199,16 @@ export default function AnalyticsPage() {
 
         {/* Purchases List */}
         <div className="glass p-6">
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
+          <h3 className="text-xl font-bold mb-4">
             Notas Fiscais
           </h3>
 
           {loading ? (
-            <p className="text-center text-slate-500 dark:text-slate-400 py-8">
+            <p className="text-center texto-suave py-8">
               Carregando...
             </p>
           ) : purchases.length === 0 ? (
-            <p className="text-center text-slate-500 dark:text-slate-400 py-8">
+            <p className="text-center texto-suave py-8">
               Nenhuma compra registrada neste mês.
             </p>
           ) : (
@@ -216,13 +216,13 @@ export default function AnalyticsPage() {
               {purchases.map((purchase) => (
                 <div
                   key={purchase.id}
-                  className="flex items-center justify-between p-4 bg-white/50 dark:bg-white/5 rounded-glass hover:bg-white/70 dark:hover:bg-white/10 transition-colors"
+                  className="flex items-center justify-between p-4 glass-card hover:opacity-90 transition-colors"
                 >
                   <div className="flex-1">
-                    <p className="font-semibold text-slate-900 dark:text-white">
+                    <p className="font-semibold">
                       Compra em {formatDate(purchase.receiptDate)}
                     </p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                    <p className="text-sm texto-suave">
                       {purchase.products.length} itens
                     </p>
                   </div>
@@ -237,9 +237,9 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Navigation Footer */}
-      <div className="fixed bottom-0 left-0 right-0 glass border-t border-white/20 dark:border-white/10 px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 glass border-t px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-around">
-          <Link href="/" className="flex flex-col items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200">
+          <Link href="/" className="flex flex-col items-center gap-1 texto-suave hover:opacity-80">
             <span>🏠</span>
             <span className="text-xs">Estoque</span>
           </Link>

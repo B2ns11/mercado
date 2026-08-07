@@ -5,6 +5,7 @@ import { Plus, Search, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { CATEGORIES, isExpiringSoon, isExpired, formatDate, formatCurrency } from '@/lib/utils';
 import type { Product, Category } from '@/types';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -94,31 +95,34 @@ export default function HomePage() {
   }
 
   function getExpiryStatus(expiryDate: string | null) {
-    if (!expiryDate) return { text: 'Data desconhecida', color: 'bg-gray-100 text-gray-600' };
-    if (isExpired(expiryDate)) return { text: 'Vencido', color: 'bg-red-100 text-red-600' };
-    if (isExpiringSoon(expiryDate, 7)) return { text: 'Vencendo em breve', color: 'bg-yellow-100 text-yellow-600' };
-    return { text: 'OK', color: 'bg-green-100 text-green-600' };
+    if (!expiryDate) return { text: 'Data desconhecida', color: 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300' };
+    if (isExpired(expiryDate)) return { text: 'Vencido', color: 'bg-red-200 dark:bg-red-950 text-red-700 dark:text-red-300' };
+    if (isExpiringSoon(expiryDate, 7)) return { text: 'Vencendo em breve', color: 'bg-yellow-200 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-300' };
+    return { text: 'OK', color: 'bg-green-200 dark:bg-green-950 text-green-800 dark:text-green-300' };
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 z-50 glass border-b border-white/20 dark:border-white/10">
+      <div className="sticky top-0 z-50 glass border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              <h1 className="text-3xl font-bold">
                 🛒 Mercado
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Controle inteligente de compras</p>
+              <p className="text-sm texto-suave">Controle inteligente de compras</p>
             </div>
-            <Link
-              href="/purchase/new"
-              className="flex items-center gap-2 glass-button bg-blue-500 hover:bg-blue-600 text-white"
-            >
-              <Plus size={20} />
-              Nova Compra
-            </Link>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Link
+                href="/purchase/new"
+                className="flex items-center gap-2 glass-button bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                <Plus size={20} />
+                Nova Compra
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -135,7 +139,7 @@ export default function HomePage() {
                 placeholder="Buscar produtos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 glass dark:glass rounded-lg border border-white/20 dark:border-white/10 focus:outline-none"
+                className="w-full pl-10 pr-4 py-2 glass rounded-lg focus:outline-none"
               />
             </div>
             <button
@@ -143,7 +147,7 @@ export default function HomePage() {
               className={`glass-button ${
                 showExpiringSoon
                   ? 'bg-yellow-500 text-white'
-                  : 'text-slate-600 dark:text-slate-400'
+                  : 'texto-suave'
               }`}
             >
               <AlertCircle size={20} />
@@ -157,7 +161,7 @@ export default function HomePage() {
               className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
                 selectedCategory === 'all'
                   ? 'glass bg-blue-500 text-white'
-                  : 'glass text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-white/10'
+                  : 'glass texto-suave hover:opacity-80'
               }`}
             >
               Todos
@@ -169,7 +173,7 @@ export default function HomePage() {
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
                   selectedCategory === cat.id
                     ? `glass bg-gradient-to-r ${cat.color} text-white`
-                    : 'glass text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-white/10'
+                    : 'glass texto-suave hover:opacity-80'
                 }`}
               >
                 {cat.icon} {cat.label}
@@ -179,7 +183,7 @@ export default function HomePage() {
         </div>
 
         {loadError && (
-          <div className="mb-6 bg-red-100 border border-red-300 text-red-800 p-4 rounded-glass">
+          <div className="mb-6 bg-red-100 dark:bg-red-950 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 p-4 rounded-glass">
             <p className="font-semibold">Erro ao carregar produtos</p>
             <p className="text-sm mt-1 break-words">{loadError}</p>
             <p className="text-xs mt-2">
@@ -191,11 +195,11 @@ export default function HomePage() {
         {/* Products Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="text-slate-500 dark:text-slate-400">Carregando produtos...</div>
+            <div className="texto-suave">Carregando produtos...</div>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="glass p-12 text-center">
-            <p className="text-slate-500 dark:text-slate-400 mb-4">
+            <p className="texto-suave mb-4">
               {products.length === 0
                 ? 'Nenhum produto cadastrado. Comece uma nova compra!'
                 : 'Nenhum produto encontrado com esses filtros.'}
@@ -223,10 +227,10 @@ export default function HomePage() {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-slate-900 dark:text-white truncate">
+                      <h3 className="font-semibold truncate">
                         {product.name}
                       </h3>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                      <p className="text-sm texto-suave">
                         {category.icon} {category.label}
                       </p>
                     </div>
@@ -241,7 +245,7 @@ export default function HomePage() {
                     {/* Expiry Status */}
                     {product.expiryDate && (
                       <div className="space-y-1">
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <p className="text-xs texto-suave">
                           Vence em: {formatDate(product.expiryDate)}
                         </p>
                         <span className={`inline-block px-2 py-1 text-xs rounded-full ${expiryStatus.color}`}>
@@ -277,13 +281,13 @@ export default function HomePage() {
       </div>
 
       {/* Navigation Footer */}
-      <div className="fixed bottom-0 left-0 right-0 glass border-t border-white/20 dark:border-white/10 px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 glass border-t px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-around">
           <Link href="/" className="flex flex-col items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold">
             <span>🏠</span>
             <span className="text-xs">Estoque</span>
           </Link>
-          <Link href="/analytics" className="flex flex-col items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200">
+          <Link href="/analytics" className="flex flex-col items-center gap-1 texto-suave hover:opacity-80">
             <span>📊</span>
             <span className="text-xs">Compras</span>
           </Link>
