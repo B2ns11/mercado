@@ -20,8 +20,7 @@
     "lucide-react": "^0.294.0",
     "framer-motion": "^10.16.4",
     "date-fns": "^2.30.0",
-    "uuid": "^9.0.1",
-    "next-image-export-optimizer": "^2.3.1"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "typescript": "^5.3.3",

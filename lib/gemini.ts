@@ -5,8 +5,18 @@ const genAI = new GoogleGenerativeAI(
   process.env.NEXT_PUBLIC_GEMINI_API_KEY || ''
 );
 
+function extractText(response: any): string {
+  if (response.text) {
+    return response.text();
+  }
+  if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+    return response.candidates[0].content.parts[0].text;
+  }
+  return '';
+}
+
 export async function extractReceiptData(base64Image: string): Promise<ExtractedData> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const prompt = `Analyze this receipt image and extract:
 1. Store/establishment name
@@ -31,7 +41,7 @@ Only return valid JSON, no additional text.`;
     prompt,
   ]);
 
-  const text = response.response.getText();
+  const text = extractText(response);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
 
   if (!jsonMatch) {
@@ -44,7 +54,7 @@ Only return valid JSON, no additional text.`;
 export async function identifyProductsFromPhoto(
   base64Image: string
 ): Promise<Array<{ name: string; category: Category }>> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const categories = [
     'limpeza (House cleaning and laundry)',
@@ -77,7 +87,7 @@ Only return valid JSON, no additional text.`;
     prompt,
   ]);
 
-  const text = response.response.getText();
+  const text = extractText(response);
   const jsonMatch = text.match(/\[[\s\S]*\]/);
 
   if (!jsonMatch) {
@@ -88,7 +98,7 @@ Only return valid JSON, no additional text.`;
 }
 
 export async function extractExpiryDate(base64Image: string): Promise<string | null> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const prompt = `Extract the expiry/validity date from this product label image.
 Return only the date in YYYY-MM-DD format or null if not found.
@@ -106,7 +116,7 @@ Only return the date or "null", nothing else.`;
     prompt,
   ]);
 
-  const text = response.response.getText().trim();
+  const text = extractText(response).trim();
 
   if (text === 'null') {
     return null;
@@ -118,8 +128,8 @@ Only return the date or "null", nothing else.`;
   return match ? match[0] : null;
 }
 
-export async function extractText(base64Image: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+export async function extractTextFromImage(base64Image: string): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const response = await model.generateContent([
     {
@@ -131,5 +141,5 @@ export async function extractText(base64Image: string): Promise<string> {
     'Extract all text visible in this image. Return only the text, no explanations.',
   ]);
 
-  return response.response.getText();
+  return extractText(response);
 }

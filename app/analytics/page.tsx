@@ -46,19 +46,21 @@ export default function AnalyticsPage() {
       // Aggregate by category
     });
 
+    const categoriesData = Object.keys(CATEGORIES).reduce(
+      (acc, cat) => ({
+        ...acc,
+        [cat]: {
+          amount: categoryTotals[cat] || 0,
+          percentage: total > 0 ? ((categoryTotals[cat] || 0) / total) * 100 : 0,
+        },
+      }),
+      {} as any
+    );
+
     setAnalytics({
       month: String(selectedMonth),
       year: selectedYear,
-      categories: Object.keys(CATEGORIES).reduce(
-        (acc, cat) => ({
-          ...acc,
-          [cat]: {
-            amount: categoryTotals[cat] || 0,
-            percentage: total > 0 ? ((categoryTotals[cat] || 0) / total) * 100 : 0,
-          },
-        }),
-        {} as Record<string, any>
-      ),
+      categories: categoriesData,
       totalAmount: total,
     });
   }
@@ -136,7 +138,7 @@ export default function AnalyticsPage() {
         {analytics && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {Object.entries(CATEGORIES).map(([key, category]) => {
-              const catData = analytics.categories[key as any];
+              const catData = analytics.categories[key as keyof typeof CATEGORIES];
               return (
                 <div key={key} className="glass p-6">
                   <div className="flex items-center justify-between mb-4">
