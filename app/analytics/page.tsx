@@ -13,6 +13,11 @@ export default function AnalyticsPage() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [diagnostico, setDiagnostico] = useState<{
+    produtosNoMes: number;
+    produtosNoBanco: number;
+    produtosComPrecoZero: number;
+  } | null>(null);
 
   useEffect(() => {
     loadPurchases();
@@ -39,6 +44,7 @@ export default function AnalyticsPage() {
 
       setPurchases(Array.isArray(purchasesData) ? purchasesData : []);
       setAnalytics(analyticsData);
+      setDiagnostico(analyticsData.diagnostico ?? null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
       console.error('Failed to load purchases:', message);
@@ -121,6 +127,34 @@ export default function AnalyticsPage() {
           <div className="mb-6 bg-red-100 border border-red-300 text-red-800 p-4 rounded-glass">
             <p className="font-semibold">Erro ao carregar dados</p>
             <p className="text-sm mt-1 break-words">{loadError}</p>
+          </div>
+        )}
+
+        {/* Explica um total zerado em vez de deixar a tela muda. */}
+        {!loading && diagnostico && analytics?.totalAmount === 0 && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-300 text-yellow-900 p-4 rounded-glass">
+            <p className="font-semibold mb-1">Por que está tudo zerado?</p>
+
+            {diagnostico.produtosNoBanco === 0 ? (
+              <p className="text-sm">
+                Ainda não há nenhum produto cadastrado. Registre uma compra para
+                ver os gastos aqui.
+              </p>
+            ) : diagnostico.produtosNoMes === 0 ? (
+              <p className="text-sm">
+                Existem {diagnostico.produtosNoBanco} produtos cadastrados, mas
+                nenhum neste mês. Navegue para o mês da compra usando as setas
+                acima.
+              </p>
+            ) : (
+              <p className="text-sm">
+                {diagnostico.produtosComPrecoZero} de {diagnostico.produtosNoMes}{' '}
+                produtos deste mês estão com preço R$ 0,00 — provavelmente a IA
+                não conseguiu ler os valores da nota. Registre a compra de novo
+                digitando os preços na etapa de conciliação, ou ajuste os itens
+                direto no Supabase.
+              </p>
+            )}
           </div>
         )}
 
