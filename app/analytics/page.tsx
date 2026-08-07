@@ -12,6 +12,7 @@ export default function AnalyticsPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadPurchases();
@@ -19,50 +20,32 @@ export default function AnalyticsPage() {
 
   async function loadPurchases() {
     setLoading(true);
+    setLoadError(null);
     try {
-      const response = await fetch(
-        `/api/purchases?month=${selectedMonth}&year=${selectedYear}`
-      );
-      const data = await response.json();
-      setPurchases(data || []);
-      calculateAnalytics(data);
+      const [purchasesRes, analyticsRes] = await Promise.all([
+        fetch(`/api/purchases?month=${selectedMonth}&year=${selectedYear}`),
+        fetch(`/api/analytics?month=${selectedMonth}&year=${selectedYear}`),
+      ]);
+
+      const purchasesData = await purchasesRes.json();
+      const analyticsData = await analyticsRes.json();
+
+      if (!purchasesRes.ok) {
+        throw new Error(`${purchasesData.error} - ${purchasesData.details ?? ''}`);
+      }
+      if (!analyticsRes.ok) {
+        throw new Error(`${analyticsData.error} - ${analyticsData.details ?? ''}`);
+      }
+
+      setPurchases(Array.isArray(purchasesData) ? purchasesData : []);
+      setAnalytics(analyticsData);
     } catch (error) {
-      console.error('Failed to load purchases:', error);
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Failed to load purchases:', message);
+      setLoadError(message);
     } finally {
       setLoading(false);
     }
-  }
-
-  function calculateAnalytics(purchaseList: Purchase[]) {
-    const categoryTotals: Record<string, number> = {};
-    let total = 0;
-
-    Object.keys(CATEGORIES).forEach((cat) => {
-      categoryTotals[cat] = 0;
-    });
-
-    purchaseList.forEach((p) => {
-      total += p.totalAmount;
-      // Aggregate by category
-    });
-
-    const categoriesData = Object.keys(CATEGORIES).reduce(
-      (acc, cat) => ({
-        ...acc,
-        [cat]: {
-          amount: categoryTotals[cat] || 0,
-          percentage: total > 0 ? ((categoryTotals[cat] || 0) / total) * 100 : 0,
-        },
-      }),
-      {} as any
-    );
-
-    setAnalytics({
-      month: String(selectedMonth),
-      year: selectedYear,
-      categories: categoriesData,
-      totalAmount: total,
-    });
   }
 
   function previousMonth() {
@@ -91,7 +74,7 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-20">
       {/* Header */}
-      <div className="sticky top-0 z-50 glass-light dark:glass-dark border-b border-white/20 dark:border-white/10">
+      <div className="sticky top-0 z-50 glass border-b border-white/20 dark:border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
             📊 Minhas Compras
@@ -133,6 +116,13 @@ export default function AnalyticsPage() {
             </div>
           )}
         </div>
+
+        {loadError && (
+          <div className="mb-6 bg-red-100 border border-red-300 text-red-800 p-4 rounded-glass">
+            <p className="font-semibold">Erro ao carregar dados</p>
+            <p className="text-sm mt-1 break-words">{loadError}</p>
+          </div>
+        )}
 
         {/* Category Breakdown */}
         {analytics && (
@@ -213,7 +203,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Navigation Footer */}
-      <div className="fixed bottom-0 left-0 right-0 glass-light dark:glass-dark border-t border-white/20 dark:border-white/10 px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 glass border-t border-white/20 dark:border-white/10 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-around">
           <Link href="/" className="flex flex-col items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200">
             <span>🏠</span>

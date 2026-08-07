@@ -1,158 +1,136 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { ExtractedData, Category } from '@/types';
 
-const genAI = new GoogleGenerativeAI(
-  process.env.NEXT_PUBLIC_GEMINI_API_KEY || ''
-);
+const apiKey =
+  process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
-function extractText(response: any): string {
-  if (response.text) {
-    return response.text();
+const MODEL_CANDIDATES = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+
+/**
+ * Envia imagem + prompt ao Gemini e devolve o texto da resposta.
+ * Tenta os modelos em ordem: se um não existir na conta, cai para o próximo.
+ */
+async function generateFromImage(base64Image: string, prompt: string): Promise<string> {
+  if (!apiKey) {
+    throw new Error(
+      'GEMINI_API_KEY não configurada. Defina GEMINI_API_KEY (ou NEXT_PUBLIC_GEMINI_API_KEY) no .env.local'
+    );
   }
-  if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
-    return response.candidates[0].content.parts[0].text;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  let lastError: unknown = null;
+
+  for (const modelName of MODEL_CANDIDATES) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+
+      const result = await model.generateContent([
+        { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
+        prompt,
+      ]);
+
+      // result.response é o EnhancedGenerateContentResponse; text() está nele,
+      // não no result. Era aqui que estava o bug que fazia a IA "não fazer nada".
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      // Modelo inexistente para essa chave: tenta o próximo da lista.
+      if (message.includes('404') || message.includes('not found')) {
+        continue;
+      }
+      throw error;
+    }
   }
-  return '';
+
+  throw lastError ?? new Error('Nenhum modelo Gemini disponível');
+}
+
+/** Extrai o primeiro bloco JSON da resposta, tolerando cercas ```json. */
+function parseJson<T>(text: string, pattern: RegExp): T {
+  const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const match = cleaned.match(pattern);
+
+  if (!match) {
+    throw new Error(`Gemini não retornou JSON válido. Resposta: ${text.slice(0, 300)}`);
+  }
+
+  return JSON.parse(match[0]) as T;
 }
 
 export async function extractReceiptData(base64Image: string): Promise<ExtractedData> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const prompt = `Analise esta imagem de nota fiscal / cupom fiscal e extraia TODAS as informações:
 
-  const prompt = `Analyze this receipt/invoice image carefully and extract ALL information:
+1. Nome do estabelecimento / loja
+2. Data da compra (converta para o formato YYYY-MM-DD)
+3. TODOS os itens listados, com o preço individual de cada um
+4. Valor total da compra
 
-1. **Store/Establishment name** - The company/store name
-2. **Purchase date** - The transaction date (convert to YYYY-MM-DD format)
-3. **ALL items listed** - Every product with its individual price
-4. **Total amount** - The final total (sum should match all items)
+IMPORTANTE:
+- Extraia TODOS os produtos listados, sem pular nenhum
+- Se houver quantidade × preço unitário, calcule o preço total daquele item
+- Inclua itens baratos e pequenos também
+- Preços como número (ex: 12.50, e não "R$ 12,50")
+- Se a data tiver só dia/mês, use o ano atual
 
-IMPORTANT:
-- Extract EVERY product listed on the receipt
-- If there are quantity × price, calculate the individual item price
-- Include all items even if small/cheap
-- For date: if only day/month given, use current year or context year
-- Format prices as numbers (e.g., 12.50 not "R$ 12,50")
-
-Return ONLY valid JSON, no markdown, no extra text:
+Responda APENAS com JSON válido, sem markdown e sem texto extra:
 {
-  "store": "store name here",
+  "store": "nome da loja",
   "date": "YYYY-MM-DD",
   "items": [
-    {"name": "product 1 name", "price": 10.50},
-    {"name": "product 2 name", "price": 5.25}
+    {"name": "nome do produto 1", "price": 10.50},
+    {"name": "nome do produto 2", "price": 5.25}
   ],
   "totalAmount": 15.75
 }`;
 
-  const response = await model.generateContent([
-    {
-      inlineData: {
-        data: base64Image,
-        mimeType: 'image/jpeg',
-      },
-    },
-    prompt,
-  ]);
-
-  const text = extractText(response);
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-
-  if (!jsonMatch) {
-    console.error('Could not match JSON in response:', text);
-    throw new Error('Could not extract receipt data');
-  }
-
-  return JSON.parse(jsonMatch[0]) as ExtractedData;
+  const text = await generateFromImage(base64Image, prompt);
+  return parseJson<ExtractedData>(text, /\{[\s\S]*\}/);
 }
 
 export async function identifyProductsFromPhoto(
   base64Image: string
 ): Promise<Array<{ name: string; category: Category }>> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const prompt = `Identifique todos os produtos visíveis nesta imagem e classifique cada um.
 
-  const categories = [
-    'limpeza (House cleaning and laundry)',
-    'higiene (Personal hygiene and bathroom)',
-    'alimentos (Basic food and grocery)',
-    'laticinios (Dairy, seasonings and refrigerated)',
-    'lanches (Cookies, chocolate and snacks)',
-  ];
+Categorias disponíveis:
+- limpeza (limpeza da casa e lavanderia)
+- higiene (higiene pessoal e banheiro)
+- alimentos (alimentos básicos e mercearia)
+- laticinios (laticínios, condimentos e refrigerados)
+- lanches (biscoitos, chocolates e lanches)
 
-  const prompt = `Identify all visible products in this image and categorize them.
+Use SOMENTE estes IDs de categoria: limpeza, higiene, alimentos, laticinios, lanches
 
-Categories available:
-${categories.join('\n')}
+Responda APENAS com um array JSON válido, sem markdown e sem texto extra:
+[
+  {"name": "nome do produto", "category": "alimentos"}
+]`;
 
-Return as JSON array with structure: [
-  {"name": "product name", "category": "category_id"}
-]
+  const text = await generateFromImage(base64Image, prompt);
 
-Use only these category IDs: limpeza, higiene, alimentos, laticinios, lanches
-
-Only return valid JSON, no additional text.`;
-
-  const response = await model.generateContent([
-    {
-      inlineData: {
-        data: base64Image,
-        mimeType: 'image/jpeg',
-      },
-    },
-    prompt,
-  ]);
-
-  const text = extractText(response);
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-
-  if (!jsonMatch) {
+  try {
+    return parseJson<Array<{ name: string; category: Category }>>(text, /\[[\s\S]*\]/);
+  } catch {
+    // Foto sem produtos reconhecíveis não é erro: segue com lista vazia.
     return [];
   }
-
-  return JSON.parse(jsonMatch[0]) as Array<{ name: string; category: Category }>;
 }
 
 export async function extractExpiryDate(base64Image: string): Promise<string | null> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const prompt = `Extraia a data de validade impressa nesta embalagem de produto.
+Responda APENAS com a data no formato YYYY-MM-DD, ou "null" se não encontrar.
+Exemplo de resposta: 2025-12-31`;
 
-  const prompt = `Extract the expiry/validity date from this product label image.
-Return only the date in YYYY-MM-DD format or null if not found.
-Example: 2025-12-31
+  const text = (await generateFromImage(base64Image, prompt)).trim();
 
-Only return the date or "null", nothing else.`;
-
-  const response = await model.generateContent([
-    {
-      inlineData: {
-        data: base64Image,
-        mimeType: 'image/jpeg',
-      },
-    },
-    prompt,
-  ]);
-
-  const text = extractText(response).trim();
-
-  if (text === 'null') {
-    return null;
-  }
-
-  const dateRegex = /\d{4}-\d{2}-\d{2}/;
-  const match = text.match(dateRegex);
-
+  const match = text.match(/\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : null;
 }
 
 export async function extractTextFromImage(base64Image: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-  const response = await model.generateContent([
-    {
-      inlineData: {
-        data: base64Image,
-        mimeType: 'image/jpeg',
-      },
-    },
-    'Extract all text visible in this image. Return only the text, no explanations.',
-  ]);
-
-  return extractText(response);
+  return generateFromImage(
+    base64Image,
+    'Extraia todo o texto visível nesta imagem. Responda apenas com o texto, sem explicações.'
+  );
 }
